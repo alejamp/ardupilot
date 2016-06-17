@@ -1,9 +1,9 @@
 /// -*- tab-width: 4; Mode: C++; c-basic-offset: 4; indent-tabs-mode: nil -*-
 
-#include <AP_HAL.h>
-#include <AP_RCMapper.h>
+#include <AP_HAL/AP_HAL.h>
+#include "AP_RCMapper.h"
 
-const AP_Param::GroupInfo RCMapper::var_info[] PROGMEM = {
+const AP_Param::GroupInfo RCMapper::var_info[] = {
     // @Param: ROLL
     // @DisplayName: Roll channel
     // @Description: Roll channel number. This is useful when you have a RC transmitter that can't change the channel order easily. Roll is normally on channel 1, but you can move it to any channel with this parameter.  Reboot is required for changes to take effect.

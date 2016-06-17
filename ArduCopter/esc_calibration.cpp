@@ -20,6 +20,7 @@ enum ESCCalibrationModes {
 // check if we should enter esc calibration mode
 void Copter::esc_calibration_startup_check()
 {
+#if FRAME_CONFIG != HELI_FRAME
     // exit immediately if pre-arm rc checks fail
     pre_arm_rc_checks();
     if (!ap.pre_arm_rc_check) {
@@ -34,11 +35,11 @@ void Copter::esc_calibration_startup_check()
     switch (g.esc_calibrate) {
         case ESCCAL_NONE:
             // check if throttle is high
-            if (channel_throttle->control_in >= ESC_CALIBRATION_HIGH_THROTTLE) {
+            if (channel_throttle->get_control_in() >= ESC_CALIBRATION_HIGH_THROTTLE) {
                 // we will enter esc_calibrate mode on next reboot
                 g.esc_calibrate.set_and_save(ESCCAL_PASSTHROUGH_IF_THROTTLE_HIGH);
                 // send message to gcs
-                gcs_send_text_P(SEVERITY_HIGH,PSTR("ESC Calibration: restart board"));
+                gcs_send_text(MAV_SEVERITY_CRITICAL,"ESC calibration: Restart board");
                 // turn on esc calibration notification
                 AP_Notify::flags.esc_calibration = true;
                 // block until we restart
@@ -47,7 +48,7 @@ void Copter::esc_calibration_startup_check()
             break;
         case ESCCAL_PASSTHROUGH_IF_THROTTLE_HIGH:
             // check if throttle is high
-            if (channel_throttle->control_in >= ESC_CALIBRATION_HIGH_THROTTLE) {
+            if (channel_throttle->get_control_in() >= ESC_CALIBRATION_HIGH_THROTTLE) {
                 // pass through pilot throttle to escs
                 esc_calibration_passthrough();
             }
@@ -70,11 +71,13 @@ void Copter::esc_calibration_startup_check()
     if (g.esc_calibrate != ESCCAL_DISABLED) {
         g.esc_calibrate.set_and_save(ESCCAL_NONE);
     }
+#endif  // FRAME_CONFIG != HELI_FRAME
 }
 
 // esc_calibration_passthrough - pass through pilot throttle to escs
 void Copter::esc_calibration_passthrough()
 {
+#if FRAME_CONFIG != HELI_FRAME
     // clear esc flag for next time
     g.esc_calibrate.set_and_save(ESCCAL_NONE);
 
@@ -82,7 +85,7 @@ void Copter::esc_calibration_passthrough()
     motors.set_update_rate(50);
 
     // send message to GCS
-    gcs_send_text_P(SEVERITY_HIGH,PSTR("ESC Calibration: passing pilot throttle to ESCs"));
+    gcs_send_text(MAV_SEVERITY_INFO,"ESC calibration: Passing pilot throttle to ESCs");
 
     while(1) {
         // arm motors
@@ -97,20 +100,22 @@ void Copter::esc_calibration_passthrough()
         delay(10);
 
         // pass through to motors
-        motors.throttle_pass_through(channel_throttle->radio_in);
+        motors.set_throttle_passthrough_for_esc_calibration(channel_throttle->get_control_in() / 1000.0f);
     }
+#endif  // FRAME_CONFIG != HELI_FRAME
 }
 
 // esc_calibration_auto - calibrate the ESCs automatically using a timer and no pilot input
 void Copter::esc_calibration_auto()
 {
+#if FRAME_CONFIG != HELI_FRAME
     bool printed_msg = false;
 
     // reduce update rate to motors to 50Hz
     motors.set_update_rate(50);
 
     // send message to GCS
-    gcs_send_text_P(SEVERITY_HIGH,PSTR("ESC Calibration: auto calibration"));
+    gcs_send_text(MAV_SEVERITY_INFO,"ESC calibration: Auto calibration");
 
     // arm and enable motors
     motors.armed(true);
@@ -121,12 +126,12 @@ void Copter::esc_calibration_auto()
 
     // raise throttle to maximum
     delay(10);
-    motors.throttle_pass_through(channel_throttle->radio_max);
+    motors.set_throttle_passthrough_for_esc_calibration(1.0f);
 
     // wait for safety switch to be pressed
     while (hal.util->safety_switch_state() == AP_HAL::Util::SAFETY_DISARMED) {
         if (!printed_msg) {
-            gcs_send_text_P(SEVERITY_HIGH,PSTR("ESC Calibration: push safety switch"));
+            gcs_send_text(MAV_SEVERITY_INFO,"ESC calibration: Push safety switch");
             printed_msg = true;
         }
         delay(10);
@@ -136,11 +141,12 @@ void Copter::esc_calibration_auto()
     delay(5000);
 
     // reduce throttle to minimum
-    motors.throttle_pass_through(channel_throttle->radio_min);
+    motors.set_throttle_passthrough_for_esc_calibration(0.0f);
 
     // clear esc parameter
     g.esc_calibrate.set_and_save(ESCCAL_NONE);
 
     // block until we restart
     while(1) { delay(5); }
+#endif // FRAME_CONFIG != HELI_FRAME
 }

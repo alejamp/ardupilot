@@ -13,12 +13,10 @@
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
+#pragma once
 
-#ifndef __AP_BATTMONITOR_BACKEND_H__
-#define __AP_BATTMONITOR_BACKEND_H__
-
-#include <AP_Common.h>
-#include <AP_HAL.h>
+#include <AP_Common/AP_Common.h>
+#include <AP_HAL/AP_HAL.h>
 #include "AP_BattMonitor.h"
 
 class AP_BattMonitor_Backend
@@ -48,4 +46,3 @@ protected:
     AP_BattMonitor::BattMonitor_State   &_state;    // reference to this instances state (held in the front-end)
     uint8_t                              _instance; // this instance
 };
-#endif // __AP_BATTMONITOR_BACKEND_H__

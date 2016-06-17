@@ -13,6 +13,16 @@ testdir=os.path.dirname(os.path.realpath(__file__))
 HOME=mavutil.location(40.071374969556928,-105.22978898137808,1583.702759,246)
 homeloc = None
 
+def arm_rover(mavproxy, mav):
+    # wait for EKF to settle
+    wait_seconds(mav, 15)
+
+    mavproxy.send('arm throttle\n')
+    mavproxy.expect('ARMED')
+
+    print("ROVER ARMED")
+    return True
+
 def drive_left_circuit(mavproxy, mav):
     '''drive a left circuit, 50m on a side'''
     mavproxy.send('switch 6\n')
@@ -56,7 +66,7 @@ def drive_mission(mavproxy, mav, filename):
     global homeloc
     print("Driving mission %s" % filename)
     mavproxy.send('wp load %s\n' % filename)
-    mavproxy.expect('flight plan received')
+    mavproxy.expect('Flight plan received')
     mavproxy.send('wp list\n')
     mavproxy.expect('Requesting [0-9]+ waypoints')
     mavproxy.send('switch 4\n') # auto mode
@@ -69,7 +79,7 @@ def drive_mission(mavproxy, mav, filename):
     return True
 
 
-def drive_APMrover2(viewerip=None, map=False):
+def drive_APMrover2(binary, viewerip=None, map=False, valgrind=False):
     '''drive APMrover2 in SIL
 
     you can pass viewerip as an IP address to optionally send fg and
@@ -84,7 +94,7 @@ def drive_APMrover2(viewerip=None, map=False):
         options += ' --map'
 
     home = "%f,%f,%u,%u" % (HOME.lat, HOME.lng, HOME.alt, HOME.heading)
-    sil = util.start_SIL('APMrover2', wipe=True, model='rover', home=home, speedup=10)
+    sil = util.start_SIL(binary, wipe=True, model='rover', home=home, speedup=10)
     mavproxy = util.start_MAVProxy_SIL('APMrover2', options=options)
 
     print("WAITING FOR PARAMETERS")
@@ -93,12 +103,15 @@ def drive_APMrover2(viewerip=None, map=False):
     # setup test parameters
     mavproxy.send("param load %s/Rover.parm\n" % testdir)
     mavproxy.expect('Loaded [0-9]+ parameters')
+    mavproxy.send("param set LOG_REPLAY 1\n")
+    mavproxy.send("param set LOG_DISARMED 1\n")
+    time.sleep(3)
 
     # restart with new parms
     util.pexpect_close(mavproxy)
     util.pexpect_close(sil)
 
-    sil = util.start_SIL('APMrover2', model='rover', home=home, speedup=10)
+    sil = util.start_SIL(binary, model='rover', home=home, speedup=10, valgrind=valgrind)
     mavproxy = util.start_MAVProxy_SIL('APMrover2', options=options)
     mavproxy.expect('Telemetry log: (\S+)')
     logfile = mavproxy.match.group(1)
@@ -142,6 +155,9 @@ def drive_APMrover2(viewerip=None, map=False):
         mav.wait_gps_fix()
         homeloc = mav.location()
         print("Home location: %s" % homeloc)
+        if not arm_rover(mavproxy, mav):
+            print("Failed to ARM")
+            failed = True
         if not drive_mission(mavproxy, mav, os.path.join(testdir, "rover1.txt")):
             print("Failed mission")
             failed = True
@@ -162,9 +178,10 @@ def drive_APMrover2(viewerip=None, map=False):
     util.pexpect_close(mavproxy)
     util.pexpect_close(sil)
 
-    if os.path.exists('APMrover2-valgrind.log'):
-        os.chmod('APMrover2-valgrind.log', 0644)
-        shutil.copy("APMrover2-valgrind.log", util.reltopdir("../buildlogs/APMrover2-valgrind.log"))
+    valgrind_log = sil.valgrind_log_filepath()
+    if os.path.exists(valgrind_log):
+        os.chmod(valgrind_log, 0644)
+        shutil.copy(valgrind_log, util.reltopdir("../buildlogs/APMrover2-valgrind.log"))
 
     if failed:
         print("FAILED: %s" % e)

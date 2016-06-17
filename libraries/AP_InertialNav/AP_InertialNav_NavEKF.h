@@ -5,12 +5,9 @@
   filter if available, and falls back to the AP_InertialNav filter
   when EKF is not available
  */
+#pragma once
 
-
-#ifndef __AP_INERTIALNAV_NAVEKF_H__
-#define __AP_INERTIALNAV_NAVEKF_H__
-
-#include <AP_Nav_Common.h>              // definitions shared by inertial and ekf nav filters
+#include <AP_NavEKF/AP_Nav_Common.h>              // definitions shared by inertial and ekf nav filters
 
 class AP_InertialNav_NavEKF : public AP_InertialNav
 {
@@ -76,6 +73,11 @@ public:
     const Vector3f&    get_velocity() const;
 
     /**
+     * get_pos_z_derivative - returns the derivative of the z position in cm/s
+    */
+    float    get_pos_z_derivative() const;
+
+    /**
      * get_velocity_xy - returns the current horizontal velocity in cm/s
      *
      * @returns the current horizontal velocity in cm/s
@@ -114,9 +116,8 @@ public:
 private:
     Vector3f _relpos_cm;   // NEU
     Vector3f _velocity_cm; // NEU
+    float _pos_z_rate;
     struct Location _abspos;
     bool _haveabspos;
     AP_AHRS_NavEKF &_ahrs_ekf;
 };
-
-#endif // __AP_INERTIALNAV_NAVEKF_H__

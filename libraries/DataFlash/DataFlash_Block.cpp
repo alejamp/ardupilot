@@ -3,14 +3,22 @@
  *       DataFlash.cpp - DataFlash log library generic code
  */
 
-#include <AP_HAL.h>
-#include "DataFlash.h"
+#include "DataFlash_Block.h"
+
+#include <AP_HAL/AP_HAL.h>
 
 extern AP_HAL::HAL& hal;
 
 // the last page holds the log format in first 4 bytes. Please change
 // this if (and only if!) the low level format changes
 #define DF_LOGGING_FORMAT    0x28122013
+
+uint16_t DataFlash_Block::bufferspace_available()
+{
+    // because DataFlash_Block devices are ring buffers, we *always*
+    // have room...
+    return df_NumPages * df_PageSize; 
+}
 
 // *** DATAFLASH PUBLIC FUNCTIONS ***
 void DataFlash_Block::StartWrite(uint16_t PageAdr)
@@ -26,7 +34,7 @@ void DataFlash_Block::FinishWrite(void)
     // Write Buffer to flash, NO WAIT
     BufferToPage(df_BufferNum, df_PageAdr, 0);      
     df_PageAdr++;
-    // If we reach the end of the memory, start from the begining    
+    // If we reach the end of the memory, start from the beginning    
     if (df_PageAdr > df_NumPages)
         df_PageAdr = 1;
 
@@ -35,11 +43,20 @@ void DataFlash_Block::FinishWrite(void)
     df_BufferIdx = 0;
 }
 
-void DataFlash_Block::WriteBlock(const void *pBuffer, uint16_t size)
+bool DataFlash_Block::WritePrioritisedBlock(const void *pBuffer, uint16_t size,
+    bool is_critical)
 {
+    // is_critical is ignored - we're a ring buffer and never run out
+    // of space.  possibly if we do more complicated bandwidth
+    // limiting we can reservice bandwidth based on is_critical
     if (!CardInserted() || !log_write_started || !_writes_enabled) {
-        return;
+        return false;
     }
+
+    if (! WriteBlockCheckStartupMessages()) {
+        return false;
+    }
+
     while (size > 0) {
         uint16_t n = df_PageSize - df_BufferIdx;
         if (n > size) {
@@ -68,6 +85,8 @@ void DataFlash_Block::WriteBlock(const void *pBuffer, uint16_t size)
             df_FilePage++;
         }
     }
+
+    return true;
 }
 
 
@@ -180,6 +199,22 @@ void DataFlash_Block::EraseAll()
     hal.scheduler->delay(100);
 }
 
+bool DataFlash_Block::NeedPrep(void)
+{
+    return NeedErase();
+}
+
+void DataFlash_Block::Prep()
+{
+    if (hal.util->get_soft_armed()) {
+        // do not want to do any filesystem operations while we are e.g. flying
+        return;
+    }
+    if (NeedErase()) {
+        EraseAll();
+    }
+}
+
 /*
  *  we need to erase if the logging format has changed
  */
@@ -236,12 +271,12 @@ int16_t DataFlash_Block::get_log_data(uint16_t log_num, uint16_t page, uint32_t 
     if (adding_fmt_headers) {
         // the log doesn't start with a FMT message, we need to add
         // them
-        const uint16_t fmt_header_size = _num_types * sizeof(struct log_Format);
+        const uint16_t fmt_header_size = num_types() * sizeof(struct log_Format);
         while (offset < fmt_header_size && len > 0) {
             struct log_Format pkt;
             uint8_t t = offset / sizeof(pkt);
             uint8_t ofs = offset % sizeof(pkt);
-            Log_Fill_Format(&_structures[t], pkt);
+            Log_Fill_Format(structure(t), pkt);
             uint8_t n = sizeof(pkt) - ofs;
             if (n > len) {
                 n = len;

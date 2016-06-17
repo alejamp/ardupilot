@@ -1,9 +1,7 @@
 // -*- tab-width: 4; Mode: C++; c-basic-offset: 4; indent-tabs-mode: nil -*-
+#pragma once
 
-#ifndef PARAMETERS_H
-#define PARAMETERS_H
-
-#include <AP_Common.h>
+#include <AP_Common/AP_Common.h>
 
 // Global parameter class.
 //
@@ -81,7 +79,7 @@ public:
         k_param_gps,
         k_param_scan_speed,
         k_param_proxy_mode_unused, // deprecated
-        k_param_servo_type,
+        k_param_servo_pitch_type,
         k_param_onoff_yaw_rate,
         k_param_onoff_pitch_rate,
         k_param_onoff_yaw_mintime,
@@ -93,11 +91,16 @@ public:
         k_param_distance_min,
         k_param_sysid_target,       // 138
         k_param_gcs3,               // stream rates for fourth MAVLink port
+        k_param_log_bitmask,        // 140
+        k_param_notify,
 
         //
         // 150: Telemetry control
         //
         k_param_serial_manager,     // serial manager library
+        k_param_servo_yaw_type,
+        k_param_alt_source,
+        k_param_mavlink_update_rate,
 
         //
         // 200 : Radio settings
@@ -133,7 +136,10 @@ public:
     AP_Float start_longitude;
 
     AP_Float startup_delay;
-    AP_Int8  servo_type;
+    AP_Int8  servo_pitch_type;
+    AP_Int8  servo_yaw_type;
+    AP_Int8  alt_source;
+    AP_Int8  mavlink_update_rate;
     AP_Float onoff_yaw_rate;
     AP_Float onoff_pitch_rate;
     AP_Float onoff_yaw_mintime;
@@ -148,6 +154,8 @@ public:
     //
     AP_Int8 command_total; // 1 if HOME is set
 
+    AP_Int32 log_bitmask;
+
     // PID controllers
     PID         pidPitch2Srv;
     PID         pidYaw2Srv;
@@ -159,5 +167,3 @@ public:
 };
 
 extern const AP_Param::Info var_info[];
-
-#endif // PARAMETERS_H

@@ -1,12 +1,17 @@
+#pragma once
 
-#ifndef __AP_HAL_LINUX_UARTDRIVER_H__
-#define __AP_HAL_LINUX_UARTDRIVER_H__
+#include "AP_HAL_Linux.h"
 
-#include <AP_HAL_Linux.h>
+#include "SerialDevice.h"
 
-class Linux::LinuxUARTDriver : public AP_HAL::UARTDriver {
+class Linux::UARTDriver : public AP_HAL::UARTDriver {
 public:
-    LinuxUARTDriver(bool default_console);
+    UARTDriver(bool default_console);
+
+    static UARTDriver *from(AP_HAL::UARTDriver *uart) {
+        return static_cast<UARTDriver*>(uart);
+    }
+
     /* Linux implementations of UARTDriver virtual methods */
     void begin(uint32_t b);
     void begin(uint32_t b, uint16_t rxS, uint16_t txS);
@@ -27,13 +32,13 @@ public:
 
     void set_device_path(const char *path);
 
+    bool _write_pending_bytes(void);
     virtual void _timer_tick(void);
 
     enum flow_control get_flow_control(void) { return _flow_control; }
 
 private:
-    int _rd_fd;
-    int _wr_fd;
+    SerialDevice *_device = nullptr;
     bool _nonblocking_writes;
     bool _console;
     volatile bool _in_timer;
@@ -44,13 +49,20 @@ private:
     bool _packetise; // true if writes should try to be on mavlink boundaries
     enum flow_control _flow_control;
 
-    void _tcp_start_connection(bool wait_for_connection);
+    void _allocate_buffers(uint16_t rxS, uint16_t txS);
+    void _deallocate_buffers();
     void _udp_start_connection(void);
+    void _tcp_start_connection(void);
+    bool _serial_start_connection(void);
+    bool _qflight_start_connection(void);
 
     enum device_type {
         DEVICE_TCP,
         DEVICE_UDP,
         DEVICE_SERIAL,
+#if CONFIG_HAL_BOARD_SUBTYPE == HAL_BOARD_SUBTYPE_LINUX_QFLIGHT
+        DEVICE_QFLIGHT,
+#endif
         DEVICE_UNKNOWN
     };
 
@@ -79,5 +91,3 @@ protected:
     virtual int _read_fd(uint8_t *buf, uint16_t n);
 
 };
-
-#endif // __AP_HAL_LINUX_UARTDRIVER_H__

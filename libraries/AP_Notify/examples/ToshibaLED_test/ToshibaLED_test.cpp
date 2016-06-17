@@ -1,61 +1,29 @@
 // -*- tab-width: 4; Mode: C++; c-basic-offset: 4; indent-tabs-mode: t -*-
 
-#include <AP_Common.h>
-#include <AP_Progmem.h>
-#include <AP_Math.h>            // ArduPilot Mega Vector/Matrix math Library
-#include <AP_Param.h>
-#include <Filter.h>
-#include <AP_ADC.h>
-#include <AP_InertialSensor.h>
-#include <AP_GPS.h>
-#include <AP_Baro.h>
-#include <DataFlash.h>
-#include <GCS_MAVLink.h>
-#include <AP_Mission.h>
-#include <StorageManager.h>
-#include <AP_Terrain.h>
-#include <AP_Declination.h>
-#include <AP_HAL.h>
-#include <AP_HAL_AVR.h>
-#include <AP_HAL_SITL.h>
-#include <AP_HAL_Linux.h>
-#include <AP_HAL_PX4.h>
-#include <AP_HAL_Empty.h>
-#include <AP_HAL_FLYMAPLE.h>
-#include <AP_Notify.h>          // Notify library
-#include <ToshibaLED.h>
-#include <AP_AHRS.h>
-#include <AP_NavEKF.h>
-#include <AP_Airspeed.h>
-#include <AP_Vehicle.h>
-#include <AP_ADC_AnalogSource.h>
-#include <AP_Compass.h>
-#include <AP_Declination.h>
-#include <AP_BattMonitor.h>
-#include <AP_RangeFinder.h>
+#include <AP_HAL/AP_HAL.h>
+#include <AP_Notify/AP_Notify.h>
 
-const AP_HAL::HAL& hal = AP_HAL_BOARD_DRIVER;
+const AP_HAL::HAL& hal = AP_HAL::get_HAL();
 
 #if CONFIG_HAL_BOARD == HAL_BOARD_PX4
+#include <AP_Notify/ToshibaLED_PX4.h>
 static ToshibaLED_PX4 toshiba_led;
 #else
+#include <AP_Notify/ToshibaLED_I2C.h>
 static ToshibaLED_I2C toshiba_led;
 #endif
-
-static uint8_t led_state;
-static uint8_t red, green, blue;
 
 void setup(void)
 {
     // display welcome message
-    hal.console->print_P(PSTR("Toshiba LED test ver 0.1\n"));
+    hal.console->print("Toshiba LED test ver 0.1\n");
 
     // initialise LED
     toshiba_led.init();
 
     // check if healthy
     if (!toshiba_led.healthy()) {
-        hal.console->print_P(PSTR("Failed to initialise Toshiba LED\n"));
+        hal.console->print("Failed to initialise Toshiba LED\n");
     }
 
     // turn on initialising notification
@@ -69,11 +37,11 @@ void setup(void)
 void loop(void)
 {
     // blink test
-    //hal.console->print_P(PSTR("Blink test\n"));
+    //hal.console->print("Blink test\n");
     //blink();
     /*
     // full spectrum test
-    hal.console->print_P(PSTR("Spectrum test\n"));
+    hal.console->print("Spectrum test\n");
     full_spectrum();
     */
 

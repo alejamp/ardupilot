@@ -8,25 +8,21 @@
 // GNU General Public License for more details.
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <http://www.gnu.org/licenses/>.
+#pragma once
 
-
-#ifndef __AP_HAL_LINUX_RCOUTPUT_AIOPRU_H__
-#define __AP_HAL_LINUX_RCOUTPUT_AIOPRU_H__
-
-#include <AP_HAL_Linux.h>
+#include "AP_HAL_Linux.h"
 #define RCOUT_PRUSS_RAM_BASE 0x4a302000
 #define RCOUT_PRUSS_CTRL_BASE 0x4a324000
 #define RCOUT_PRUSS_IRAM_BASE 0x4a338000
 #define PWM_CHAN_COUNT 12
 
-class Linux::LinuxRCOutput_AioPRU : public AP_HAL::RCOutput {
-    void     init(void* machtnichts);
+class Linux::RCOutput_AioPRU : public AP_HAL::RCOutput {
+    void     init();
     void     set_freq(uint32_t chmask, uint16_t freq_hz);
     uint16_t get_freq(uint8_t ch);
     void     enable_ch(uint8_t ch);
     void     disable_ch(uint8_t ch);
     void     write(uint8_t ch, uint16_t period_us);
-    void     write(uint8_t ch, uint16_t* period_us, uint8_t len);
     uint16_t read(uint8_t ch);
     void     read(uint16_t* period_us, uint8_t len);
 
@@ -44,5 +40,3 @@ private:
 
     volatile struct pwm *pwm;
 };
-
-#endif // __AP_HAL_LINUX_RCOUTPUT_AIOPRU_H__

@@ -1,7 +1,6 @@
 /// -*- tab-width: 4; Mode: C++; c-basic-offset: 4; indent-tabs-mode: nil -*-
+#pragma once
 
-#ifndef APM_OBC_H
-#define APM_OBC_H
 /*
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -22,12 +21,12 @@
   Andrew Tridgell and CanberraUAV, August 2012
 */
 
-#include <AP_Common.h>
-#include <AP_Param.h>
-#include <AP_Mission.h>
-#include <AP_Baro.h>
-#include <AP_GPS.h>
-#include <AP_RCMapper.h>
+#include <AP_Common/AP_Common.h>
+#include <AP_Param/AP_Param.h>
+#include <AP_Mission/AP_Mission.h>
+#include <AP_Baro/AP_Baro.h>
+#include <AP_GPS/AP_GPS.h>
+#include <AP_RCMapper/AP_RCMapper.h>
 #include <inttypes.h>
 
 
@@ -100,9 +99,13 @@ private:
     AP_Float _qnh_pressure;
     AP_Int32 _amsl_limit;
     AP_Int32 _amsl_margin_gps;
-    AP_Int16 _rc_fail_time;
+    AP_Float _rc_fail_time_seconds;
     AP_Int8  _max_gps_loss;
     AP_Int8  _max_comms_loss;
+    AP_Int8  _enable_geofence_fs;
+    AP_Int8  _enable_RC_fs;
+    AP_Int8  _rc_term_manual_only;
+    AP_Int8  _enable_dual_loss;
 
     bool _heartbeat_pin_value;
 
@@ -132,5 +135,3 @@ private:
 
 // map from ArduPlane control_mode to APM_OBC::control_mode
 #define OBC_MODE(control_mode) (auto_throttle_mode?APM_OBC::OBC_AUTO:(control_mode==MANUAL?APM_OBC::OBC_MANUAL:APM_OBC::OBC_FBW))
-
-#endif // APM_OBC_H

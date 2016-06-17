@@ -1,9 +1,7 @@
 /// -*- tab-width: 4; Mode: C++; c-basic-offset: 4; indent-tabs-mode: nil -*-
+#pragma once
 
-#ifndef __AP_HAL_VRBRAIN_ANALOGIN_H__
-#define __AP_HAL_VRBRAIN_ANALOGIN_H__
-
-#include <AP_HAL_VRBRAIN.h>
+#include "AP_HAL_VRBRAIN.h"
 #include <pthread.h>
 #include <uORB/uORB.h>
 
@@ -56,7 +54,7 @@ private:
 class VRBRAIN::VRBRAINAnalogIn : public AP_HAL::AnalogIn {
 public:
     VRBRAINAnalogIn();
-    void init(void* implspecific);
+    void init();
     AP_HAL::AnalogSource* channel(int16_t pin);
     void _timer_tick(void);
     float board_voltage(void) { return _board_voltage; }
@@ -83,4 +81,3 @@ private:
 
     void next_stop_pin(void);
 };
-#endif // __AP_HAL_VRBRAIN_ANALOGIN_H__

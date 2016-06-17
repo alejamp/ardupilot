@@ -1,8 +1,6 @@
+#pragma once
 
-#ifndef __AP_HAL_UTILITY_STREAM_H__
-#define __AP_HAL_UTILITY_STREAM_H__
-
-#include "../AP_HAL_Namespace.h"
+#include <AP_HAL/AP_HAL_Namespace.h>
 #include "Print.h"
 
 /* A simple Stream library modeled after the bits we actually use
@@ -20,6 +18,3 @@ public:
     virtual int16_t read() = 0;
 
 };
-
-#endif // __AP_HAL_UTILITY_STREAM_H__
-

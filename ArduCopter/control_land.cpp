@@ -30,6 +30,9 @@ bool Copter::land_init(bool ignore_checks)
 
     land_pause = false;
 
+    // reset flag indicating if pilot has applied roll or pitch inputs during landing
+    ap.land_repo_active = false;
+
     return true;
 }
 
@@ -53,12 +56,14 @@ void Copter::land_gps_run()
     float target_yaw_rate = 0;
 
     // if not auto armed or landed or motor interlock not enabled set throttle to zero and exit immediately
-    if(!ap.auto_armed || ap.land_complete || !motors.get_interlock()) {
+    if (!motors.armed() || !ap.auto_armed || ap.land_complete || !motors.get_interlock()) {
 #if FRAME_CONFIG == HELI_FRAME  // Helicopters always stabilize roll/pitch/yaw
         // call attitude controller
-        attitude_control.angle_ef_roll_pitch_rate_ef_yaw_smooth(0, 0, 0, get_smoothing_gain());
+        attitude_control.input_euler_angle_roll_pitch_euler_rate_yaw_smooth(0, 0, 0, get_smoothing_gain());
         attitude_control.set_throttle_out(0,false,g.throttle_filt);
-#else   // Multirotors do not stabilize roll/pitch/yaw when disarmed
+#else
+        motors.set_desired_spool_state(AP_Motors::DESIRED_SPIN_WHEN_ARMED);
+        // multicopters do not stabilize roll/pitch/yaw when disarmed
         attitude_control.set_throttle_out_unstabilized(0,true,g.throttle_filt);
 #endif
         wp_nav.init_loiter_target();
@@ -84,27 +89,50 @@ void Copter::land_gps_run()
 
     // process pilot inputs
     if (!failsafe.radio) {
+        if ((g.throttle_behavior & THR_BEHAVE_HIGH_THROTTLE_CANCELS_LAND) != 0 && rc_throttle_control_in_filter.get() > LAND_CANCEL_TRIGGER_THR){
+            Log_Write_Event(DATA_LAND_CANCELLED_BY_PILOT);
+            // exit land if throttle is high
+            if (!set_mode(LOITER, MODE_REASON_THROTTLE_LAND_ESCAPE)) {
+                set_mode(ALT_HOLD, MODE_REASON_THROTTLE_LAND_ESCAPE);
+            }
+        }
+
         if (g.land_repositioning) {
             // apply SIMPLE mode transform to pilot inputs
             update_simple_mode();
 
             // process pilot's roll and pitch input
-            roll_control = channel_roll->control_in;
-            pitch_control = channel_pitch->control_in;
+            roll_control = channel_roll->get_control_in();
+            pitch_control = channel_pitch->get_control_in();
+
+            // record if pilot has overriden roll or pitch
+            if (roll_control != 0 || pitch_control != 0) {
+                ap.land_repo_active = true;
+            }
         }
 
         // get pilot's desired yaw rate
-        target_yaw_rate = get_pilot_desired_yaw_rate(channel_yaw->control_in);
+        target_yaw_rate = get_pilot_desired_yaw_rate(channel_yaw->get_control_in());
     }
+
+    // set motors to full range
+    motors.set_desired_spool_state(AP_Motors::DESIRED_THROTTLE_UNLIMITED);
 
     // process roll, pitch inputs
     wp_nav.set_pilot_desired_acceleration(roll_control, pitch_control);
+
+#if PRECISION_LANDING == ENABLED
+    // run precision landing
+    if (!ap.land_repo_active) {
+        wp_nav.shift_loiter_target(precland.get_target_shift(wp_nav.get_loiter_target()));
+    }
+#endif
 
     // run loiter controller
     wp_nav.update_loiter(ekfGndSpdLimit, ekfNavVelGainScaler);
 
     // call attitude controller
-    attitude_control.angle_ef_roll_pitch_rate_ef_yaw(wp_nav.get_roll(), wp_nav.get_pitch(), target_yaw_rate);
+    attitude_control.input_euler_angle_roll_pitch_euler_rate_yaw(wp_nav.get_roll(), wp_nav.get_pitch(), target_yaw_rate);
 
     // pause 4 seconds before beginning land descent
     float cmb_rate;
@@ -133,25 +161,33 @@ void Copter::land_nogps_run()
 
     // process pilot inputs
     if (!failsafe.radio) {
+        if ((g.throttle_behavior & THR_BEHAVE_HIGH_THROTTLE_CANCELS_LAND) != 0 && rc_throttle_control_in_filter.get() > LAND_CANCEL_TRIGGER_THR){
+            Log_Write_Event(DATA_LAND_CANCELLED_BY_PILOT);
+            // exit land if throttle is high
+            set_mode(ALT_HOLD, MODE_REASON_THROTTLE_LAND_ESCAPE);
+        }
+
         if (g.land_repositioning) {
             // apply SIMPLE mode transform to pilot inputs
             update_simple_mode();
 
             // get pilot desired lean angles
-            get_pilot_desired_lean_angles(channel_roll->control_in, channel_pitch->control_in, target_roll, target_pitch);
+            get_pilot_desired_lean_angles(channel_roll->get_control_in(), channel_pitch->get_control_in(), target_roll, target_pitch, aparm.angle_max);
         }
 
         // get pilot's desired yaw rate
-        target_yaw_rate = get_pilot_desired_yaw_rate(channel_yaw->control_in);
+        target_yaw_rate = get_pilot_desired_yaw_rate(channel_yaw->get_control_in());
     }
 
     // if not auto armed or landed or motor interlock not enabled set throttle to zero and exit immediately
-    if(!ap.auto_armed || ap.land_complete || !motors.get_interlock()) {
+    if (!motors.armed() || !ap.auto_armed || ap.land_complete || !motors.get_interlock()) {
 #if FRAME_CONFIG == HELI_FRAME  // Helicopters always stabilize roll/pitch/yaw
         // call attitude controller
-        attitude_control.angle_ef_roll_pitch_rate_ef_yaw_smooth(target_roll, target_pitch, target_yaw_rate, get_smoothing_gain());
+        attitude_control.input_euler_angle_roll_pitch_euler_rate_yaw_smooth(target_roll, target_pitch, target_yaw_rate, get_smoothing_gain());
         attitude_control.set_throttle_out(0,false,g.throttle_filt);
-#else   // Multirotors do not stabilize roll/pitch/yaw when disarmed
+#else
+        motors.set_desired_spool_state(AP_Motors::DESIRED_SPIN_WHEN_ARMED);
+        // multicopters do not stabilize roll/pitch/yaw when disarmed
         attitude_control.set_throttle_out_unstabilized(0,true,g.throttle_filt);
 #endif
 
@@ -169,8 +205,11 @@ void Copter::land_nogps_run()
         return;
     }
 
+    // set motors to full range
+    motors.set_desired_spool_state(AP_Motors::DESIRED_THROTTLE_UNLIMITED);
+
     // call attitude controller
-    attitude_control.angle_ef_roll_pitch_rate_ef_yaw_smooth(target_roll, target_pitch, target_yaw_rate, get_smoothing_gain());
+    attitude_control.input_euler_angle_roll_pitch_euler_rate_yaw_smooth(target_roll, target_pitch, target_yaw_rate, get_smoothing_gain());
 
     // pause 4 seconds before beginning land descent
     float cmb_rate;
@@ -194,13 +233,30 @@ void Copter::land_nogps_run()
 //      should be called at 100hz or higher
 float Copter::get_land_descent_speed()
 {
-#if CONFIG_SONAR == ENABLED
-    bool sonar_ok = sonar_enabled && (sonar.status() == RangeFinder::RangeFinder_Good);
+#if RANGEFINDER_ENABLED == ENABLED
+    bool rangefinder_ok = rangefinder_state.enabled && rangefinder_state.alt_healthy;
 #else
-    bool sonar_ok = false;
+    bool rangefinder_ok = false;
 #endif
-    // if we are above 10m and the sonar does not sense anything perform regular alt hold descent
-    if (pos_control.get_pos_target().z >= pv_alt_above_origin(LAND_START_ALT) && !(sonar_ok && sonar_alt_health >= SONAR_ALT_HEALTH_MAX)) {
+
+    // get position controller's target altitude above terrain
+    Location_Class target_loc = pos_control.get_pos_target();
+    int32_t target_alt_cm;
+
+    // get altitude target above home by default
+    target_loc.get_alt_cm(Location_Class::ALT_FRAME_ABOVE_HOME, target_alt_cm);
+
+    // try to use terrain if enabled
+    if (terrain_use() && !target_loc.get_alt_cm(Location_Class::ALT_FRAME_ABOVE_TERRAIN, target_alt_cm)) {
+        Log_Write_Error(ERROR_SUBSYSTEM_TERRAIN, ERROR_CODE_MISSING_TERRAIN_DATA);
+    }
+
+    // if we are above 10m and the rangefinder does not sense anything perform regular alt hold descent
+    if ((target_alt_cm >= LAND_START_ALT) && !rangefinder_ok) {
+        if (g.land_speed_high > 0) {
+            // user has asked for a different landing speed than normal descent rate
+            return -abs(g.land_speed_high);
+        }
         return pos_control.get_speed_down();
     }else{
         return -abs(g.land_speed);
@@ -217,9 +273,9 @@ void Copter::land_do_not_use_GPS()
 
 // set_mode_land_with_pause - sets mode to LAND and triggers 4 second delay before descent starts
 //  this is always called from a failsafe so we trigger notification to pilot
-void Copter::set_mode_land_with_pause()
+void Copter::set_mode_land_with_pause(mode_reason_t reason)
 {
-    set_mode(LAND);
+    set_mode(LAND, reason);
     land_pause = true;
 
     // alert pilot to mode change

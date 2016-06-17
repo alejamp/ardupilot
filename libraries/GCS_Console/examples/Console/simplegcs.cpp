@@ -1,9 +1,9 @@
 
-#include <AP_HAL.h>
+#include <AP_HAL/AP_HAL.h>
 extern const AP_HAL::HAL& hal;
 
-#include <GCS_MAVLink.h>
-#include <GCS_Console.h>
+#include <GCS_MAVLink/GCS_MAVLink.h>
+#include <GCS_Console/GCS_Console.h>
 #include "simplegcs.h"
 
 void send_heartbeat(mavlink_channel_t chan) {
@@ -50,7 +50,7 @@ bool try_send_statustext(mavlink_channel_t chan, const char *text, int len) {
     }
     mavlink_msg_statustext_send(
             chan,
-            1, /* SEVERITY_LOW */
+            4, /* MAV_SEVERITY_WARNING */
             statustext);
     return true;
 }
@@ -71,7 +71,7 @@ void simplegcs_update(mavlink_channel_t chan) {
 
 
 void handle_message(mavlink_channel_t chan, mavlink_message_t* msg) {
-    hal.console->printf_P(PSTR("SimpleGCS Handle Message %d\r\n"), msg->msgid);
+    hal.console->printf("SimpleGCS Handle Message %d\r\n", msg->msgid);
     switch (msg->msgid) {
         case MAVLINK_MSG_ID_PARAM_REQUEST_LIST:
         {

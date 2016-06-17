@@ -65,7 +65,7 @@ void Copter::update_land_detector()
 
         if (motor_at_lower_limit && accel_stationary) {
             // landed criteria met - increment the counter and check if we've triggered
-            if( land_detector_count < ((float)LAND_DETECTOR_TRIGGER_SEC)*MAIN_LOOP_RATE) {
+            if( land_detector_count < ((float)LAND_DETECTOR_TRIGGER_SEC)*scheduler.get_loop_rate_hz()) {
                 land_detector_count++;
             } else {
                 set_land_complete(true);
@@ -76,9 +76,10 @@ void Copter::update_land_detector()
         }
     }
 
-    set_land_complete_maybe(ap.land_complete || (land_detector_count >= LAND_DETECTOR_MAYBE_TRIGGER_SEC*MAIN_LOOP_RATE));
+    set_land_complete_maybe(ap.land_complete || (land_detector_count >= LAND_DETECTOR_MAYBE_TRIGGER_SEC*scheduler.get_loop_rate_hz()));
 }
 
+// set land_complete flag and disarm motors if disarm-on-land is configured
 void Copter::set_land_complete(bool b)
 {
     // if no change, exit immediately
@@ -93,6 +94,14 @@ void Copter::set_land_complete(bool b)
         Log_Write_Event(DATA_NOT_LANDED);
     }
     ap.land_complete = b;
+
+    // trigger disarm-on-land if configured
+    bool disarm_on_land_configured = (g.throttle_behavior & THR_BEHAVE_DISARM_ON_LAND_DETECT) != 0;
+    bool mode_disarms_on_land = mode_allows_arming(control_mode,false) && !mode_has_manual_throttle(control_mode);
+
+    if (ap.land_complete && motors.armed() && disarm_on_land_configured && mode_disarms_on_land) {
+        init_disarm_motors();
+    }
 }
 
 // set land complete maybe flag
@@ -113,15 +122,16 @@ void Copter::set_land_complete_maybe(bool b)
 //  has no effect when throttle is above hover throttle
 void Copter::update_throttle_thr_mix()
 {
-    // if disarmed prioritise throttle
-    if(!motors.armed()) {
+#if FRAME_CONFIG != HELI_FRAME
+    // if disarmed or landed prioritise throttle
+    if(!motors.armed() || ap.land_complete) {
         motors.set_throttle_mix_min();
         return;
     }
 
     if (mode_has_manual_throttle(control_mode)) {
         // manual throttle
-        if(channel_throttle->control_in <= 0) {
+        if(channel_throttle->get_control_in() <= 0) {
             motors.set_throttle_mix_min();
         } else {
             motors.set_throttle_mix_mid();
@@ -130,12 +140,12 @@ void Copter::update_throttle_thr_mix()
         // autopilot controlled throttle
 
         // check for aggressive flight requests - requested roll or pitch angle below 15 degrees
-        const Vector3f angle_target = attitude_control.angle_ef_targets();
-        bool large_angle_request = (pythagorous2(angle_target.x, angle_target.y) > 1500.0f);
+        const Vector3f angle_target = attitude_control.get_att_target_euler_cd();
+        bool large_angle_request = (norm(angle_target.x, angle_target.y) > 1500.0f);
 
         // check for large external disturbance - angle error over 30 degrees
-        const Vector3f angle_error = attitude_control.angle_bf_error();
-        bool large_angle_error = (pythagorous2(angle_error.x, angle_error.y) > 3000.0f);
+        const Vector3f angle_error = attitude_control.get_att_error_rot_vec_cd();
+        bool large_angle_error = (norm(angle_error.x, angle_error.y) > 3000.0f);
 
         // check for large acceleration - falling or high turbulence
         Vector3f accel_ef = ahrs.get_accel_ef_blended();
@@ -151,4 +161,5 @@ void Copter::update_throttle_thr_mix()
             motors.set_throttle_mix_min();
         }
     }
+#endif
 }

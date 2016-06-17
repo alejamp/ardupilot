@@ -17,18 +17,18 @@
   parent class for aircraft simulators
 */
 
-#ifndef _SIM_AIRCRAFT_H
-#define _SIM_AIRCRAFT_H
+#pragma once
+
+#include <AP_Math/AP_Math.h>
 
 #include "SITL.h"
-#include <AP_Common.h>
-#include <AP_Math.h>
+
+namespace SITL {
 
 /*
   parent class for all simulator types
  */
-class Aircraft
-{
+class Aircraft {
 public:
     Aircraft(const char *home_str, const char *frame_str);
 
@@ -72,19 +72,56 @@ public:
     /* fill a sitl_fdm structure from the simulator state */
     void fill_fdm(struct sitl_fdm &fdm) const;
 
+    /* return normal distribution random numbers */
+    static double rand_normal(double mean, double stddev);
+
+    /* parse a home location string */
+    static bool parse_home(const char *home_str, Location &loc, float &yaw_degrees);
+
+    // get frame rate of model in Hz
+    float get_rate_hz(void) const { return rate_hz; }       
+
+    const Vector3f &get_gyro(void) const {
+        return gyro;
+    }
+
+    const Vector3f &get_velocity_ef(void) const {
+        return velocity_ef;
+    }
+
+    const Vector3f &get_velocity_air_ef(void) const {
+        return velocity_air_ef;
+    }
+    
+    const Matrix3f &get_dcm(void) const {
+        return dcm;
+    }
+    
 protected:
+    SITL *sitl;
     Location home;
     Location location;
 
     float ground_level;
+    float home_yaw;
     float frame_height;
     Matrix3f dcm;  // rotation matrix, APM conventions, from body to earth
     Vector3f gyro; // rad/s
     Vector3f velocity_ef; // m/s, earth frame
+    Vector3f wind_ef; // m/s, earth frame
+    Vector3f velocity_air_ef; // velocity relative to airmass, earth frame
+    Vector3f velocity_air_bf; // velocity relative to airmass, body frame
     Vector3f position; // meters, NED from origin
     float mass; // kg
     Vector3f accel_body; // m/s/s NED, body frame
     float airspeed; // m/s, apparent airspeed
+    float airspeed_pitot; // m/s, apparent airspeed, as seen by fwd pitot tube
+    float battery_voltage = -1;
+    float battery_current = 0;
+    float rpm1 = 0;
+    float rpm2 = 0;
+    uint8_t rcin_chan_count = 0;
+    float rcin[8];
 
     uint64_t time_now_us;
 
@@ -98,14 +135,13 @@ protected:
     uint64_t last_wall_time_us;
     uint8_t instance;
     const char *autotest_dir;
+    const char *frame;
+    bool use_time_sync = true;
 
     bool on_ground(const Vector3f &pos) const;
 
     /* update location from position */
     void update_position(void);
-
-    /* rotate to the given yaw */
-    void set_yaw_degrees(float yaw_degrees);
 
     /* advance time by deltat in seconds */
     void time_advance(float deltat);
@@ -126,14 +162,17 @@ protected:
     /* return wall clock time in microseconds since 1970 */
     uint64_t get_wall_time_us(void) const;
 
-    /* return normal distribution random numbers */
-    double rand_normal(double mean, double stddev);
+    // update attitude and relative position
+    void update_dynamics(const Vector3f &rot_accel);
 
+    // update wind vector
+    void update_wind(const struct sitl_input &input);
+    
 private:
     uint64_t last_time_us = 0;
     uint32_t frame_counter = 0;
+    uint32_t last_ground_contact_ms;
     const uint32_t min_sleep_time;
 };
 
-#endif // _SIM_AIRCRAFT_H
-
+} // namespace SITL

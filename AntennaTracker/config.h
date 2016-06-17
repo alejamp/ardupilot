@@ -1,5 +1,7 @@
 // -*- tab-width: 4; Mode: C++; c-basic-offset: 4; indent-tabs-mode: nil -*-
 //
+#pragma once
+
 #include "defines.h"
 
 #include "APM_Config.h" // <== THIS INCLUDE, DO NOT EDIT IT. EVER.
@@ -57,12 +59,20 @@
  # define DISTANCE_MIN_DEFAULT              5.0f    // do not track targets within 5 meters
 #endif
 
-//////////////////////////////////////////////////////////////////////////////
-// Developer Items
 //
-
-// use this to completely disable the CLI
-#ifndef CLI_ENABLED
- # define CLI_ENABLED ENABLED
+// Dataflash logging control
+//
+#ifndef LOGGING_ENABLED
+# define LOGGING_ENABLED        ENABLED
 #endif
 
+// Default logging bitmask
+#ifndef DEFAULT_LOG_BITMASK
+ # define DEFAULT_LOG_BITMASK \
+    MASK_LOG_ATTITUDE | \
+    MASK_LOG_GPS | \
+    MASK_LOG_RCIN | \
+    MASK_LOG_IMU | \
+    MASK_LOG_RCOUT | \
+    MASK_LOG_COMPASS
+#endif

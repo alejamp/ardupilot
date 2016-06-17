@@ -104,6 +104,9 @@ bool Copter::set_home(const Location& loc)
     // log ahrs home and ekf origin dataflash
     Log_Write_Home_And_Origin();
 
+    // send new home location to GCS
+    GCS_MAVLINK::send_home_all(loc);
+
     // return success
     return true;
 }
@@ -133,7 +136,13 @@ void Copter::set_system_time_from_GPS()
     // if we have a 3d lock and valid location
     if (gps.status() >= AP_GPS::GPS_OK_FIX_3D) {
         // set system clock for log timestamps
-        hal.util->set_system_clock(gps.time_epoch_usec());
+        uint64_t gps_timestamp = gps.time_epoch_usec();
+                
+        hal.util->set_system_clock(gps_timestamp);
+                
+        // update signing timestamp
+        GCS_MAVLINK::update_signing_timestamp(gps_timestamp);
+
         ap.system_time_set = true;
         Log_Write_Event(DATA_SYSTEM_TIME_SET);
     }

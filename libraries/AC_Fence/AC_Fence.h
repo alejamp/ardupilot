@@ -1,12 +1,11 @@
 /// -*- tab-width: 4; Mode: C++; c-basic-offset: 4; indent-tabs-mode: nil -*-
-#ifndef AC_FENCE_H
-#define AC_FENCE_H
+#pragma once
 
 #include <inttypes.h>
-#include <AP_Common.h>
-#include <AP_Param.h>
-#include <AP_Math.h>
-#include <AP_InertialNav.h>     // Inertial Navigation library
+#include <AP_Common/AP_Common.h>
+#include <AP_Param/AP_Param.h>
+#include <AP_Math/AP_Math.h>
+#include <AP_InertialNav/AP_InertialNav.h>     // Inertial Navigation library
 
 // bit masks for enabled fence types.  Used for TYPE parameter
 #define AC_FENCE_TYPE_NONE                          0       // fence disabled
@@ -54,6 +53,9 @@ public:
     /// check_fence - returns the fence type that has been breached (if any)
     ///     curr_alt is the altitude above home in meters
     uint8_t check_fence(float curr_alt);
+
+    // returns true if the destination is within fence (used to reject waypoints outside the fence)
+    bool check_destination_within_fence(float dest_alt, float dest_distance_to_home);
 
     /// get_breaches - returns bit mask of the fence types that have been breached
     uint8_t get_breaches() const { return _breached_fences; }
@@ -124,4 +126,3 @@ private:
 
     uint32_t        _manual_recovery_start_ms;  // system time in milliseconds that pilot re-took manual control
 };
-#endif	// AC_FENCE_H

@@ -3,16 +3,14 @@
 /*
   Servo controlled mount backend class
  */
+#pragma once
 
-#ifndef __AP_MOUNT_SERVO_H__
-#define __AP_MOUNT_SERVO_H__
-
-#include <AP_Math.h>
-#include <AP_Common.h>
-#include <AP_GPS.h>
-#include <AP_AHRS.h>
-#include <GCS_MAVLink.h>
-#include <RC_Channel_aux.h>
+#include <AP_Math/AP_Math.h>
+#include <AP_Common/AP_Common.h>
+#include <AP_GPS/AP_GPS.h>
+#include <AP_AHRS/AP_AHRS.h>
+#include <GCS_MAVLink/GCS_MAVLink.h>
+#include <RC_Channel/RC_Channel_aux.h>
 #include "AP_Mount_Backend.h"
 
 class AP_Mount_Servo : public AP_Mount_Backend
@@ -80,5 +78,3 @@ private:
 
     uint32_t _last_check_servo_map_ms;  // system time of latest call to check_servo_map function
 };
-
-#endif // __AP_MOUNT_SERVO_H__

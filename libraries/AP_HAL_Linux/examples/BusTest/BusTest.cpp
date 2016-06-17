@@ -4,16 +4,10 @@
 // scan I2C and SPI buses for expected devices
 //
 
-#include <AP_Common.h>
-#include <AP_Progmem.h>
-#include <AP_HAL.h>
-#include <AP_HAL_Linux.h>
-#include <AP_HAL_Empty.h>
-#include <AP_Math.h>
-#include <AP_Param.h>
-#include <StorageManager.h>
+#include <AP_Common/AP_Common.h>
+#include <AP_HAL/AP_HAL.h>
 
-const AP_HAL::HAL& hal = AP_HAL_BOARD_DRIVER;
+const AP_HAL::HAL& hal = AP_HAL::get_HAL();
 
 void setup(void)
 {
@@ -22,7 +16,7 @@ void setup(void)
 
 static struct {
     const char *name;
-    enum AP_HAL::SPIDevice dev;
+    enum AP_HAL::SPIDeviceType dev;
     uint8_t whoami_reg;
 } whoami_list[] = {
     { "MS5611",     AP_HAL::SPIDevice_MS5611,     0x00 | 0x80 },
@@ -40,7 +34,7 @@ void loop(void)
 
     hal.console->printf("Scanning SPI bus devices\n");
 
-    for (uint8_t i=0; i<sizeof(whoami_list)/sizeof(whoami_list[0]); i++) {
+    for (uint8_t i=0; i < ARRAY_SIZE(whoami_list); i++) {
         spi = hal.spi->device(whoami_list[i].dev);
         if (spi == NULL) {
             hal.console->printf("Failed to get SPI device for %s\n", whoami_list[i].name);

@@ -19,11 +19,22 @@
  *  Author: Andrew Tridgell, January 2013
  *
  */
+#pragma once
 
-#ifndef AP_SCHEDULER_H
-#define AP_SCHEDULER_H
+#include <AP_Param/AP_Param.h>
+#include <AP_HAL/Util.h>
 
-#include <AP_Param.h>
+#define AP_SCHEDULER_NAME_INITIALIZER(_name) .name = #_name,
+
+/*
+  useful macro for creating scheduler task table
+ */
+#define SCHED_TASK_CLASS(classname, classptr, func, _rate_hz, _max_time_micros) { \
+    .function = FUNCTOR_BIND(classptr, &classname::func, void),\
+    AP_SCHEDULER_NAME_INITIALIZER(func)\
+    .rate_hz = _rate_hz,\
+    .max_time_micros = _max_time_micros\
+}
 
 /*
   A task scheduler for APM main loops
@@ -35,17 +46,21 @@
   the scheduler is allowed to use before it must return
  */
 
-#include <AP_HAL.h>
-#include <AP_Vehicle.h>
+#include <AP_HAL/AP_HAL.h>
+#include <AP_Vehicle/AP_Vehicle.h>
 
 class AP_Scheduler
 {
 public:
+    // constructor
+    AP_Scheduler(void);
+    
     FUNCTOR_TYPEDEF(task_fn_t, void);
 
     struct Task {
         task_fn_t function;
-        uint16_t interval_ticks;
+        const char *name;
+        float rate_hz;
         uint16_t max_time_micros;
     };
 
@@ -71,6 +86,11 @@ public:
     // end of a run()
     float load_average(uint32_t tick_time_usec) const;
 
+    // get the configured main loop rate
+    uint16_t get_loop_rate_hz(void) const {
+        return _loop_rate_hz;
+    }
+    
     static const struct AP_Param::GroupInfo var_info[];
 
     // current running task, or -1 if none. Used to debug stuck tasks
@@ -80,6 +100,9 @@ private:
     // used to enable scheduler debugging
     AP_Int8 _debug;
 
+    // overall scheduling rate in Hz
+    AP_Int16 _loop_rate_hz;
+    
     // progmem list of tasks to run
     const struct Task *_tasks;
 
@@ -104,6 +127,7 @@ private:
 
     // number of ticks that _spare_micros is counted over
     uint8_t _spare_ticks;
-};
 
-#endif // AP_SCHEDULER_H
+    // performance counters
+    AP_HAL::Util::perf_counter_t *_perf_counters;
+};

@@ -1,40 +1,10 @@
-#include <AP_HAL.h>
-#include <AP_HAL_AVR.h>
-#include <AP_HAL_SITL.h>
-#include <AP_HAL_PX4.h>
-#include <AP_HAL_Linux.h>
-#include <AP_HAL_Empty.h>
-#include <AP_Common.h>
-#include <AP_Baro.h>
-#include <AP_ADC.h>
-#include <AP_GPS.h>
-#include <AP_InertialSensor.h>
-#include <AP_Notify.h>
-#include <DataFlash.h>
-#include <GCS_MAVLink.h>
-#include <AP_Mission.h>
-#include <StorageManager.h>
-#include <AP_Terrain.h>
-#include <AP_Compass.h>
-#include <AP_Declination.h>
-#include <SITL.h>
-#include <Filter.h>
-#include <AP_Param.h>
-#include <AP_Progmem.h>
-#include <AP_Math.h>
-#include <AP_AHRS.h>
-#include <AP_Airspeed.h>
-#include <AP_Vehicle.h>
-#include <AP_ADC_AnalogSource.h>
-#include <AP_NavEKF.h>
-#include <AP_Rally.h>
-#include <AP_BattMonitor.h>
-#include <AP_RangeFinder.h>
+#include <AP_Common/AP_Common.h>
+#include <AP_HAL/AP_HAL.h>
 
-const AP_HAL::HAL& hal = AP_HAL_BOARD_DRIVER;
+const AP_HAL::HAL& hal = AP_HAL::get_HAL();
 
 void setup(void) {
-    hal.console->println_P(PSTR("Starting Printf test"));
+    hal.console->println("Starting Printf test");
 }
 
 static const struct {
@@ -80,30 +50,30 @@ static void test_printf(void)
     char buf[30];
     uint8_t failures = 0;
     hal.console->printf("Running printf tests\n");
-    for (i=0; i<sizeof(float_tests)/sizeof(float_tests[0]); i++) {
+    for (i=0; i < ARRAY_SIZE(float_tests); i++) {
         int ret = hal.util->snprintf(buf, sizeof(buf), float_tests[i].fmt, float_tests[i].v);
         if (strcmp(buf, float_tests[i].result) != 0) {
-            hal.console->printf("Failed float_tests[%u] '%s' -> '%s' should be '%s'\n", 
-                                (unsigned)i, 
+            hal.console->printf("Failed float_tests[%u] '%s' -> '%s' should be '%s'\n",
+                                (unsigned)i,
                                 float_tests[i].fmt,
                                 buf,
                                 float_tests[i].result);
             failures++;
         }
-        if (ret != strlen(float_tests[i].result)) {
-            hal.console->printf("Failed float_tests[%u] ret=%d/%d '%s' should be '%s'\n", 
-                                (unsigned)i, 
+        if (ret != (int)strlen(float_tests[i].result)) {
+            hal.console->printf("Failed float_tests[%u] ret=%d/%d '%s' should be '%s'\n",
+                                (unsigned)i,
                                 ret, (int)strlen(float_tests[i].result),
                                 float_tests[i].fmt,
                                 float_tests[i].result);
-            failures++;            
+            failures++;
         }
     }
     hal.console->printf("%u failures\n", (unsigned)failures);
 }
 
-void loop(void) 
-{	
+void loop(void)
+{
     test_printf();
     hal.scheduler->delay(1000);
 }

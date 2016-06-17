@@ -1,5 +1,5 @@
 
-#include <AP_HAL.h>
+#include <AP_HAL/AP_HAL.h>
 #if CONFIG_HAL_BOARD == HAL_BOARD_PX4
 #include <stdio.h>
 #include <stdarg.h>
@@ -108,8 +108,12 @@ bool PX4Util::get_system_id(char buf[40])
     get_board_serial(serialid);
 #ifdef CONFIG_ARCH_BOARD_PX4FMU_V1
     const char *board_type = "PX4v1";
-#else
+#elif CONFIG_ARCH_BOARD_PX4FMU_V2
     const char *board_type = "PX4v2";
+#elif CONFIG_ARCH_BOARD_PX4FMU_V4
+    const char *board_type = "PX4v4";
+#else
+    const char *board_type = "PX4v?";
 #endif
     // this format is chosen to match the human_readable_serial()
     // function in auth.c
@@ -124,14 +128,46 @@ bool PX4Util::get_system_id(char buf[40])
 /**
    how much free memory do we have in bytes.
 */
-uint16_t PX4Util::available_memory(void) 
+uint32_t PX4Util::available_memory(void) 
 {
-    struct mallinfo mem;
-    mem = mallinfo();
-    if (mem.fordblks > 0xFFFF) {
-        return 0xFFFF;
+    return mallinfo().fordblks;
+}
+
+/*
+  AP_HAL wrapper around PX4 perf counters
+ */
+PX4Util::perf_counter_t PX4Util::perf_alloc(PX4Util::perf_counter_type t, const char *name)
+{
+    ::perf_counter_type px4_t;
+    switch (t) {
+    case PX4Util::PC_COUNT:
+        px4_t = ::PC_COUNT;
+        break;
+    case PX4Util::PC_ELAPSED:
+        px4_t = ::PC_ELAPSED;
+        break;
+    case PX4Util::PC_INTERVAL:
+        px4_t = ::PC_INTERVAL;
+        break;
+    default:
+        return NULL;
     }
-    return mem.fordblks;
+    return (perf_counter_t)::perf_alloc(px4_t, name);
+}
+
+void PX4Util::perf_begin(perf_counter_t h)
+{
+    ::perf_begin((::perf_counter_t)h);
+}
+
+void PX4Util::perf_end(perf_counter_t h)
+{
+    ::perf_end((::perf_counter_t)h);
+}
+
+void PX4Util::perf_count(perf_counter_t h)
+{
+    ::perf_count((::perf_counter_t)h);
 }
 
 #endif // CONFIG_HAL_BOARD == HAL_BOARD_PX4

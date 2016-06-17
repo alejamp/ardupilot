@@ -3,41 +3,10 @@
 // Unit tests for the AP_Math polygon code
 //
 
-#include <AP_Common.h>
-#include <AP_Progmem.h>
-#include <AP_Param.h>
-#include <AP_HAL.h>
-#include <AP_Math.h>
-#include <Filter.h>
-#include <AP_ADC.h>
-#include <AP_Notify.h>
-#include <AP_InertialSensor.h>
-#include <AP_GPS.h>
-#include <DataFlash.h>
-#include <AP_Baro.h>
-#include <GCS_MAVLink.h>
-#include <AP_Mission.h>
-#include <StorageManager.h>
-#include <AP_Terrain.h>
-#include <AP_Declination.h>
-#include <AP_Rally.h>
-#include <AP_OpticalFlow.h>
+#include <AP_HAL/AP_HAL.h>
+#include <AP_Math/AP_Math.h>
 
-#include <AP_HAL_AVR.h>
-#include <AP_HAL_SITL.h>
-#include <AP_HAL_Empty.h>
-#include <AP_HAL_Linux.h>
-#include <AP_AHRS.h>
-#include <SITL.h>
-#include <AP_NavEKF.h>
-#include <AP_Airspeed.h>
-#include <AP_Vehicle.h>
-#include <AP_ADC_AnalogSource.h>
-#include <AP_Compass.h>
-#include <AP_BattMonitor.h>
-#include <AP_RangeFinder.h>
-
-const AP_HAL::HAL& hal = AP_HAL_BOARD_DRIVER;
+const AP_HAL::HAL& hal = AP_HAL::get_HAL();
 
 static const struct {
     Vector2f wp1, wp2, location;
@@ -66,11 +35,9 @@ static const struct {
       Vector2f(-2, 2), true },
 };
 
-#define ARRAY_LENGTH(x) (sizeof((x))/sizeof((x)[0]))
-
 static struct Location location_from_point(Vector2f pt)
 {
-    struct Location loc = {0};
+    struct Location loc = {};
     loc.lat = pt.x * 1.0e7f;
     loc.lng = pt.y * 1.0e7f;
     return loc;
@@ -79,7 +46,7 @@ static struct Location location_from_point(Vector2f pt)
 static void test_passed_waypoint(void)
 {
     hal.console->println("waypoint tests starting");
-    for (uint8_t i=0; i<ARRAY_LENGTH(test_points); i++) {
+    for (uint8_t i=0; i<ARRAY_SIZE(test_points); i++) {
         struct Location loc = location_from_point(test_points[i].location);
         struct Location wp1 = location_from_point(test_points[i].wp1);
         struct Location wp2 = location_from_point(test_points[i].wp2);
@@ -99,10 +66,10 @@ static void test_one_offset(const struct Location &loc,
     float dist2, bearing2;
 
     loc2 = loc;
-    uint32_t t1 = hal.scheduler->micros();
+    uint32_t t1 = AP_HAL::micros();
     location_offset(loc2, ofs_north, ofs_east);
     hal.console->printf("location_offset took %u usec\n",
-                        (unsigned)(hal.scheduler->micros() - t1));
+                        (unsigned)(AP_HAL::micros() - t1));
     dist2 = get_distance(loc, loc2);
     bearing2 = get_bearing_cd(loc, loc2) * 0.01f;
     float brg_error = bearing2-bearing;
@@ -130,12 +97,12 @@ static const struct {
 
 static void test_offset(void)
 {
-    struct Location loc;
+    struct Location loc {};
 
     loc.lat = -35*1.0e7f;
     loc.lng = 149*1.0e7f;
 
-    for (uint8_t i=0; i<ARRAY_LENGTH(test_offsets); i++) {
+    for (uint8_t i=0; i<ARRAY_SIZE(test_offsets); i++) {
         test_one_offset(loc,
                         test_offsets[i].ofs_north,
                         test_offsets[i].ofs_east,
@@ -150,7 +117,7 @@ static void test_offset(void)
  */
 static void test_accuracy(void)
 {
-    struct Location loc;
+    struct Location loc {};
 
     loc.lat = 0.0e7f;
     loc.lng = -120.0e7f;
@@ -227,14 +194,14 @@ static const struct {
 static const struct {
     float v, wv;
 } wrap_PI_tests[] = {
-    { 0.2f*PI,            0.2f*PI },
-    { 0.2f*PI + 100*PI,  0.2f*PI },
-    { -0.2f*PI - 100*PI,  -0.2f*PI },
+    { 0.2f*M_PI,            0.2f*M_PI },
+    { 0.2f*M_PI + 100*M_PI,  0.2f*M_PI },
+    { -0.2f*M_PI - 100*M_PI,  -0.2f*M_PI },
 };
 
 static void test_wrap_cd(void)
 {
-    for (uint8_t i=0; i<sizeof(wrap_180_tests)/sizeof(wrap_180_tests[0]); i++) {
+    for (uint8_t i=0; i < ARRAY_SIZE(wrap_180_tests); i++) {
         int32_t r = wrap_180_cd(wrap_180_tests[i].v);
         if (r != wrap_180_tests[i].wv) {
             hal.console->printf("wrap_180: v=%ld wv=%ld r=%ld\n",
@@ -244,7 +211,7 @@ static void test_wrap_cd(void)
         }
     }
 
-    for (uint8_t i=0; i<sizeof(wrap_360_tests)/sizeof(wrap_360_tests[0]); i++) {
+    for (uint8_t i=0; i < ARRAY_SIZE(wrap_360_tests); i++) {
         int32_t r = wrap_360_cd(wrap_360_tests[i].v);
         if (r != wrap_360_tests[i].wv) {
             hal.console->printf("wrap_360: v=%ld wv=%ld r=%ld\n",
@@ -254,7 +221,7 @@ static void test_wrap_cd(void)
         }
     }
 
-    for (uint8_t i=0; i<sizeof(wrap_PI_tests)/sizeof(wrap_PI_tests[0]); i++) {
+    for (uint8_t i=0; i < ARRAY_SIZE(wrap_PI_tests); i++) {
         float r = wrap_PI(wrap_PI_tests[i].v);
         if (fabsf(r - wrap_PI_tests[i].wv) > 0.001f) {
             hal.console->printf("wrap_PI: v=%f wv=%f r=%f\n",
@@ -267,7 +234,6 @@ static void test_wrap_cd(void)
     hal.console->printf("wrap_cd tests done\n");
 }
 
-#if HAL_CPU_CLASS >= HAL_CPU_CLASS_75
 static void test_wgs_conversion_functions(void)
 {
 
@@ -352,7 +318,6 @@ static void test_wgs_conversion_functions(void)
 
     }
 }
-#endif //HAL_CPU_CLASS
 
 /*
  *  polygon tests
@@ -363,9 +328,7 @@ void setup(void)
     test_offset();
     test_accuracy();
     test_wrap_cd();
-#if HAL_CPU_CLASS >= HAL_CPU_CLASS_75
     test_wgs_conversion_functions();
-#endif
     hal.console->printf("ALL TESTS DONE\n");
 }
 

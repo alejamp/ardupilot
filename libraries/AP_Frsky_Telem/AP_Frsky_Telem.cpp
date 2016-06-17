@@ -20,7 +20,7 @@
 /* 
    FRSKY Telemetry library
 */
-#include <AP_Frsky_Telem.h>
+#include "AP_Frsky_Telem.h"
 extern const AP_HAL::HAL& hal;
 
 //constructor
@@ -156,7 +156,7 @@ void AP_Frsky_Telem::init_uart_for_sport()
 */
 void AP_Frsky_Telem::send_hub_frame()
 {
-    uint32_t now = hal.scheduler->millis();
+    uint32_t now = AP_HAL::millis();
 
     // send frame1 every 200ms
     if (now - _last_frame1_ms > 200) {
@@ -506,7 +506,7 @@ void AP_Frsky_Telem::calc_gps_position()
         
         alt = loc.alt * 0.01f;
         _alt_gps_meters = (int16_t)alt;
-        _alt_gps_cm = (alt - abs(_alt_gps_meters)) * 100;
+        _alt_gps_cm = (alt - _alt_gps_meters) * 100;
         
         speed = gps.ground_speed();
         _speed_in_meter = speed;
@@ -609,7 +609,7 @@ void AP_Frsky_Telem::send_heading(void)
 }
 
 /*
- * send gps lattitude degree and minute integer part; Initialize gps info
+ * send gps latitude degree and minute integer part; Initialize gps info
  */
 void AP_Frsky_Telem::send_gps_lat_dd(void)
 {
@@ -617,7 +617,7 @@ void AP_Frsky_Telem::send_gps_lat_dd(void)
 }
 
 /*
- * send gps lattitude minutes decimal part 
+ * send gps latitude minutes decimal part 
  */
 void AP_Frsky_Telem::send_gps_lat_mm(void)
 {

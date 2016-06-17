@@ -1,8 +1,6 @@
+#pragma once
 
-#ifndef __AP_HAL_VRBRAIN_SCHEDULER_H__
-#define __AP_HAL_VRBRAIN_SCHEDULER_H__
-
-#include <AP_HAL.h>
+#include <AP_HAL/AP_HAL.h>
 #if CONFIG_HAL_BOARD == HAL_BOARD_VRBRAIN
 #include "AP_HAL_VRBRAIN_Namespace.h"
 #include <sys/time.h>
@@ -25,12 +23,8 @@ public:
 	VRBRAINScheduler();
     /* AP_HAL::Scheduler methods */
 
-    void     init(void *unused);
+    void     init();
     void     delay(uint16_t ms);
-    uint32_t millis();
-    uint32_t micros();
-    uint64_t millis64();
-    uint64_t micros64();
     void     delay_microseconds(uint16_t us);
     void     register_delay_callback(AP_HAL::Proc, uint16_t min_time_ms);
     void     register_timer_process(AP_HAL::MemberProc);
@@ -39,10 +33,8 @@ public:
     void     suspend_timer_procs();
     void     resume_timer_procs();
     void     reboot(bool hold_in_bootloader);
-    void     panic(const prog_char_t *errormsg) NORETURN;
 
     bool     in_timerprocess();
-    bool     system_initializing();
     void     system_initialized();
     void     hal_initialized() { _hal_initialized = true; }
     
@@ -52,7 +44,6 @@ private:
     AP_HAL::Proc _delay_cb;
     uint16_t _min_delay_cb_ms;
     AP_HAL::Proc _failsafe;
-    volatile bool _timer_pending;
 
     volatile bool _timer_suspended;
 
@@ -85,6 +76,3 @@ private:
     perf_counter_t  _perf_delay;
 };
 #endif
-#endif // __AP_HAL_VRBRAIN_SCHEDULER_H__
-
-

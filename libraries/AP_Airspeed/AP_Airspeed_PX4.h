@@ -14,16 +14,14 @@
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
+#pragma once
 
 /*
-  backend driver for airspeed from I2C
+  backend driver for airspeed from PX4Firmware
  */
 
-#ifndef __AP_AIRSPEED_PX4_H__
-#define __AP_AIRSPEED_PX4_H__
-
-#include <AP_HAL.h>
-#include <AP_Airspeed_Backend.h>
+#include <AP_HAL/AP_HAL.h>
+#include "AP_Airspeed_Backend.h"
 
 class AP_Airspeed_PX4 : public AP_Airspeed_Backend {
 public:
@@ -44,5 +42,3 @@ private:
     uint64_t _last_timestamp;
     float _temperature;
 };
-
-#endif // __AP_AIRSPEED_PX4_H__

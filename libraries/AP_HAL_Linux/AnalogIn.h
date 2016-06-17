@@ -1,12 +1,10 @@
+#pragma once
 
-#ifndef __AP_HAL_LINUX_ANALOGIN_H__
-#define __AP_HAL_LINUX_ANALOGIN_H__
+#include "AP_HAL_Linux.h"
 
-#include <AP_HAL_Linux.h>
-
-class Linux::LinuxAnalogSource : public AP_HAL::AnalogSource {
+class Linux::AnalogSource : public AP_HAL::AnalogSource {
 public:
-    LinuxAnalogSource(float v);
+    AnalogSource(float v);
     float read_average();
     float read_latest();
     void set_pin(uint8_t p);
@@ -19,14 +17,13 @@ private:
     float _v;
 };
 
-class Linux::LinuxAnalogIn : public AP_HAL::AnalogIn {
+class Linux::AnalogIn : public AP_HAL::AnalogIn {
 public:
-    LinuxAnalogIn();
-    void init(void* implspecific);
+    AnalogIn();
+    void init();
     AP_HAL::AnalogSource* channel(int16_t n);
 
     // we don't yet know how to get the board voltage
     float board_voltage(void) { return 0.0f; }
 
 };
-#endif // __AP_HAL_LINUX_ANALOGIN_H__

@@ -1,6 +1,6 @@
 // -*- tab-width: 4; Mode: C++; c-basic-offset: 4; indent-tabs-mode: nil -*-
 
-#include <AP_Mount_Backend.h>
+#include "AP_Mount_Backend.h"
 
 extern const AP_HAL::HAL& hal;
 
@@ -26,26 +26,27 @@ void AP_Mount_Backend::set_roi_target(const struct Location &target_loc)
     _frontend.set_mode(_instance, MAV_MOUNT_MODE_GPS_POINT);
 }
 
-// configure_msg - process MOUNT_CONFIGURE messages received from GCS
+// configure_msg - process MOUNT_CONFIGURE messages received from GCS.  deprecated.
 void AP_Mount_Backend::configure_msg(mavlink_message_t* msg)
 {
     __mavlink_mount_configure_t packet;
     mavlink_msg_mount_configure_decode(msg, &packet);
 
-    // set mode
-    _frontend.set_mode(_instance,(enum MAV_MOUNT_MODE)packet.mount_mode);
-
-    // set which axis are stabilized
-    _state._stab_roll = packet.stab_roll;
-    _state._stab_tilt = packet.stab_pitch;
-    _state._stab_pan = packet.stab_yaw;
+    set_mode((MAV_MOUNT_MODE)packet.mount_mode);
 }
 
-// control_msg - process MOUNT_CONTROL messages received from GCS
+// control_msg - process MOUNT_CONTROL messages received from GCS. deprecated.
 void AP_Mount_Backend::control_msg(mavlink_message_t *msg)
 {
     __mavlink_mount_control_t packet;
     mavlink_msg_mount_control_decode(msg, &packet);
+
+    control((int32_t)packet.input_a, (int32_t)packet.input_b, (int32_t)packet.input_c, _state._mode);
+}
+
+void AP_Mount_Backend::control(int32_t pitch_or_lat, int32_t roll_or_lon, int32_t yaw_or_alt, MAV_MOUNT_MODE mount_mode)
+{
+    _frontend.set_mode(_instance, mount_mode);
 
     // interpret message fields based on mode
     switch (_frontend.get_mode(_instance)) {
@@ -56,7 +57,7 @@ void AP_Mount_Backend::control_msg(mavlink_message_t *msg)
 
         // set earth frame target angles from mavlink message
         case MAV_MOUNT_MODE_MAVLINK_TARGETING:
-            set_angle_targets(packet.input_b*0.01f, packet.input_a*0.01f, packet.input_c*0.01f);
+            set_angle_targets(roll_or_lon*0.01f, pitch_or_lat*0.01f, yaw_or_alt*0.01f);
             break;
 
         // Load neutral position and start RC Roll,Pitch,Yaw control with stabilization
@@ -68,9 +69,9 @@ void AP_Mount_Backend::control_msg(mavlink_message_t *msg)
         case MAV_MOUNT_MODE_GPS_POINT:
             Location target_location;
             memset(&target_location, 0, sizeof(target_location));
-            target_location.lat = packet.input_a;
-            target_location.lng = packet.input_b;
-            target_location.alt = packet.input_c;
+            target_location.lat = pitch_or_lat;
+            target_location.lng = roll_or_lon;
+            target_location.alt = yaw_or_alt;
             target_location.flags.relative_alt = true;
             set_roi_target(target_location);
             break;
@@ -122,7 +123,8 @@ void AP_Mount_Backend::update_targets_from_rc()
 // returns the angle (degrees*100) that the RC_Channel input is receiving
 int32_t AP_Mount_Backend::angle_input(RC_Channel* rc, int16_t angle_min, int16_t angle_max)
 {
-    return (rc->get_reverse() ? -1 : 1) * (rc->radio_in - rc->radio_min) * (int32_t)(angle_max - angle_min) / (rc->radio_max - rc->radio_min) + (rc->get_reverse() ? angle_max : angle_min);
+    return (rc->get_reverse() ? -1 : 1) * (rc->get_radio_in() - rc->get_radio_min()) 
+      * (int32_t)(angle_max - angle_min) / (rc->get_radio_max() - rc->get_radio_min()) + (rc->get_reverse() ? angle_max : angle_min);
 }
 
 // returns the angle (radians) that the RC_Channel input is receiving
@@ -137,7 +139,7 @@ void AP_Mount_Backend::calc_angle_to_location(const struct Location &target, Vec
     float GPS_vector_x = (target.lng-_frontend._current_loc.lng)*cosf(ToRad((_frontend._current_loc.lat+target.lat)*0.00000005f))*0.01113195f;
     float GPS_vector_y = (target.lat-_frontend._current_loc.lat)*0.01113195f;
     float GPS_vector_z = (target.alt-_frontend._current_loc.alt);                 // baro altitude(IN CM) should be adjusted to known home elevation before take off (Set altimeter).
-    float target_distance = 100.0f*pythagorous2(GPS_vector_x, GPS_vector_y);      // Careful , centimeters here locally. Baro/alt is in cm, lat/lon is in meters.
+    float target_distance = 100.0f*norm(GPS_vector_x, GPS_vector_y);      // Careful , centimeters here locally. Baro/alt is in cm, lat/lon is in meters.
 
     // initialise all angles to zero
     angles_to_target_rad.zero();

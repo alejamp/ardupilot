@@ -2,52 +2,53 @@
 #include "AP_BattMonitor.h"
 #include "AP_BattMonitor_Analog.h"
 #include "AP_BattMonitor_SMBus.h"
+#include "AP_BattMonitor_Bebop.h"
 
 extern const AP_HAL::HAL& hal;
 
-const AP_Param::GroupInfo AP_BattMonitor::var_info[] PROGMEM = {
-    // @Param: MONITOR
+const AP_Param::GroupInfo AP_BattMonitor::var_info[] = {
+    // @Param: _MONITOR
     // @DisplayName: Battery monitoring
     // @Description: Controls enabling monitoring of the battery's voltage and current
-    // @Values: 0:Disabled,3:Analog Voltage Only,4:Analog Voltage and Current,5:SMBus
+    // @Values: 0:Disabled,3:Analog Voltage Only,4:Analog Voltage and Current,5:SMBus,6:Bebop
     // @User: Standard
     AP_GROUPINFO("_MONITOR", 0, AP_BattMonitor, _monitoring[0], BattMonitor_TYPE_NONE),
 
-    // @Param: VOLT_PIN
+    // @Param: _VOLT_PIN
     // @DisplayName: Battery Voltage sensing pin
     // @Description: Setting this to 0 ~ 13 will enable battery voltage sensing on pins A0 ~ A13. For the 3DR power brick on APM2.5 it should be set to 13. On the PX4 it should be set to 100. On the Pixhawk powered from the PM connector it should be set to 2.
     // @Values: -1:Disabled, 0:A0, 1:A1, 2:Pixhawk, 13:A13, 100:PX4
     // @User: Standard
     AP_GROUPINFO("_VOLT_PIN", 1, AP_BattMonitor, _volt_pin[0], AP_BATT_VOLT_PIN),
 
-    // @Param: CURR_PIN
+    // @Param: _CURR_PIN
     // @DisplayName: Battery Current sensing pin
     // @Description: Setting this to 0 ~ 13 will enable battery current sensing on pins A0 ~ A13. For the 3DR power brick on APM2.5 it should be set to 12. On the PX4 it should be set to 101. On the Pixhawk powered from the PM connector it should be set to 3.
     // @Values: -1:Disabled, 1:A1, 2:A2, 3:Pixhawk, 12:A12, 101:PX4
     // @User: Standard
     AP_GROUPINFO("_CURR_PIN", 2, AP_BattMonitor, _curr_pin[0], AP_BATT_CURR_PIN),
 
-    // @Param: VOLT_MULT
+    // @Param: _VOLT_MULT
     // @DisplayName: Voltage Multiplier
     // @Description: Used to convert the voltage of the voltage sensing pin (BATT_VOLT_PIN) to the actual battery's voltage (pin_voltage * VOLT_MULT). For the 3DR Power brick on APM2 or Pixhawk, this should be set to 10.1. For the Pixhawk with the 3DR 4in1 ESC this should be 12.02. For the PX4 using the PX4IO power supply this should be set to 1.
     // @User: Advanced
     AP_GROUPINFO("_VOLT_MULT", 3, AP_BattMonitor, _volt_multiplier[0], AP_BATT_VOLTDIVIDER_DEFAULT),
 
-    // @Param: AMP_PERVOLT
+    // @Param: _AMP_PERVOLT
     // @DisplayName: Amps per volt
     // @Description: Number of amps that a 1V reading on the current sensor corresponds to. On the APM2 or Pixhawk using the 3DR Power brick this should be set to 17. For the Pixhawk with the 3DR 4in1 ESC this should be 17.
     // @Units: Amps/Volt
     // @User: Standard
     AP_GROUPINFO("_AMP_PERVOLT", 4, AP_BattMonitor, _curr_amp_per_volt[0], AP_BATT_CURR_AMP_PERVOLT_DEFAULT),
 
-    // @Param: AMP_OFFSET
+    // @Param: _AMP_OFFSET
     // @DisplayName: AMP offset
     // @Description: Voltage offset at zero current on current sensor
     // @Units: Volts
     // @User: Standard
     AP_GROUPINFO("_AMP_OFFSET", 5, AP_BattMonitor, _curr_amp_offset[0], 0),
 
-    // @Param: CAPACITY
+    // @Param: _CAPACITY
     // @DisplayName: Battery capacity
     // @Description: Capacity of the battery in mAh when full
     // @Units: mAh
@@ -56,13 +57,24 @@ const AP_Param::GroupInfo AP_BattMonitor::var_info[] PROGMEM = {
     AP_GROUPINFO("_CAPACITY", 6, AP_BattMonitor, _pack_capacity[0], AP_BATT_CAPACITY_DEFAULT),
 
     // 7 & 8 were used for VOLT2_PIN and VOLT2_MULT
-    // 9..10 left for future expansion
+
+#if APM_BUILD_TYPE(APM_BUILD_ArduPlane)
+    // @Param: _WATT_MAX
+    // @DisplayName: Maximum allowed power (Watts)
+    // @Description: If battery wattage (voltage * current) exceeds this value then the system will reduce max throttle (THR_MAX, TKOFF_THR_MAX and THR_MIN for reverse thrust) to satisfy this limit. This helps limit high current to low C rated batteries regardless of battery voltage. The max throttle will slowly grow back to THR_MAX (or TKOFF_THR_MAX ) and THR_MIN if demanding the current max and under the watt max. Use 0 to disable.
+    // @Units: Watts
+    // @Increment: 1
+    // @User: Advanced
+    AP_GROUPINFO("_WATT_MAX", 9, AP_BattMonitor, _watt_max[0], AP_BATT_MAX_WATT_DEFAULT),
+#endif
+
+    // 10 is left for future expansion
 
 #if AP_BATT_MONITOR_MAX_INSTANCES > 1
     // @Param: 2_MONITOR
     // @DisplayName: Battery monitoring
     // @Description: Controls enabling monitoring of the battery's voltage and current
-    // @Values: 0:Disabled,3:Analog Voltage Only,4:Analog Voltage and Current,5:SMBus
+    // @Values: 0:Disabled,3:Analog Voltage Only,4:Analog Voltage and Current,5:SMBus,6:Bebop
     // @User: Standard
     AP_GROUPINFO("2_MONITOR", 11, AP_BattMonitor, _monitoring[1], BattMonitor_TYPE_NONE),
 
@@ -108,6 +120,17 @@ const AP_Param::GroupInfo AP_BattMonitor::var_info[] PROGMEM = {
     // @User: Standard
     AP_GROUPINFO("2_CAPACITY", 17, AP_BattMonitor, _pack_capacity[1], AP_BATT_CAPACITY_DEFAULT),
 
+
+#if APM_BUILD_TYPE(APM_BUILD_ArduPlane)
+    // @Param: 2_WATT_MAX
+    // @DisplayName: Maximum allowed current
+    // @Description: If battery wattage (voltage * current) exceeds this value then the system will reduce max throttle (THR_MAX, TKOFF_THR_MAX and THR_MIN for reverse thrust) to satisfy this limit. This helps limit high current to low C rated batteries regardless of battery voltage. The max throttle will slowly grow back to THR_MAX (or TKOFF_THR_MAX ) and THR_MIN if demanding the current max and under the watt max. Use 0 to disable.
+    // @Units: Amps
+    // @Increment: 1
+    // @User: Advanced
+    AP_GROUPINFO("2_WATT_MAX", 18, AP_BattMonitor, _watt_max[1], AP_BATT_MAX_WATT_DEFAULT),
+#endif
+
 #endif // AP_BATT_MONITOR_MAX_INSTANCES > 1
 
     AP_GROUPEND
@@ -132,25 +155,37 @@ AP_BattMonitor::init()
         return;
     }
 
+#if CONFIG_HAL_BOARD_SUBTYPE == HAL_BOARD_SUBTYPE_LINUX_BEBOP
+    // force monitor for bebop
+    _monitoring[0] = BattMonitor_TYPE_BEBOP;
+#endif
+
     // create each instance
     for (uint8_t instance=0; instance<AP_BATT_MONITOR_MAX_INSTANCES; instance++) {
         uint8_t monitor_type = _monitoring[instance];
-
-        // check for analog instance
-        if (monitor_type == BattMonitor_TYPE_ANALOG_VOLTAGE_ONLY || monitor_type == BattMonitor_TYPE_ANALOG_VOLTAGE_AND_CURRENT) {
-            state[instance].instance = instance;
-            drivers[instance] = new AP_BattMonitor_Analog(*this, instance, state[instance]);
-            _num_instances++;
-
-        // check for SMBus
-        } else if (monitor_type == BattMonitor_TYPE_SMBUS) {
-            state[instance].instance = instance;
+        switch (monitor_type) {
+            case BattMonitor_TYPE_ANALOG_VOLTAGE_ONLY:
+            case BattMonitor_TYPE_ANALOG_VOLTAGE_AND_CURRENT:
+                state[instance].instance = instance;
+                drivers[instance] = new AP_BattMonitor_Analog(*this, instance, state[instance]);
+                _num_instances++;
+                break;
+            case BattMonitor_TYPE_SMBUS:
+                state[instance].instance = instance;
 #if CONFIG_HAL_BOARD == HAL_BOARD_PX4
-            drivers[instance] = new AP_BattMonitor_SMBus_PX4(*this, instance, state[instance]);
+                drivers[instance] = new AP_BattMonitor_SMBus_PX4(*this, instance, state[instance]);
 #else
-            drivers[instance] = new AP_BattMonitor_SMBus_I2C(*this, instance, state[instance]);
+                drivers[instance] = new AP_BattMonitor_SMBus_I2C(*this, instance, state[instance]);
 #endif
-            _num_instances++;
+                _num_instances++;
+                break;
+            case BattMonitor_TYPE_BEBOP:
+#if CONFIG_HAL_BOARD_SUBTYPE == HAL_BOARD_SUBTYPE_LINUX_BEBOP
+                state[instance].instance = instance;
+                drivers[instance] = new AP_BattMonitor_Bebop(*this, instance, state[instance]);
+                _num_instances++;
+#endif
+                break;
         }
 
         // call init function for each backend
@@ -164,12 +199,7 @@ AP_BattMonitor::init()
 void
 AP_BattMonitor::read()
 {
-    // exit immediately if no monitors setup
-    if (_num_instances == 0) {
-        return;
-    }
-
-    for (uint8_t i=0; i<AP_BATT_MONITOR_MAX_INSTANCES; i++) {
+    for (uint8_t i=0; i<_num_instances; i++) {
         if (drivers[i] != NULL && _monitoring[i] != BattMonitor_TYPE_NONE) {
             drivers[i]->read();
         }
@@ -178,17 +208,21 @@ AP_BattMonitor::read()
 
 // healthy - returns true if monitor is functioning
 bool AP_BattMonitor::healthy(uint8_t instance) const {
-    return instance < AP_BATT_MONITOR_MAX_INSTANCES && _BattMonitor_STATE(instance).healthy;
+    return instance < _num_instances && _BattMonitor_STATE(instance).healthy;
+}
+
+bool AP_BattMonitor::is_powering_off(uint8_t instance) const {
+    return instance < _num_instances && _BattMonitor_STATE(instance).is_powering_off;
 }
 
 /// has_current - returns true if battery monitor instance provides current info
 bool AP_BattMonitor::has_current(uint8_t instance) const
 {
     // check for analog voltage and current monitor or smbus monitor
-    if (instance < AP_BATT_MONITOR_MAX_INSTANCES) {
-        if (drivers[instance] != NULL) {
-            return (_monitoring[instance] == BattMonitor_TYPE_ANALOG_VOLTAGE_AND_CURRENT || _monitoring[instance] == BattMonitor_TYPE_SMBUS);
-        }
+    if (instance < _num_instances && drivers[instance] != NULL) {
+        return (_monitoring[instance] == BattMonitor_TYPE_ANALOG_VOLTAGE_AND_CURRENT ||
+                _monitoring[instance] == BattMonitor_TYPE_SMBUS ||
+                _monitoring[instance] == BattMonitor_TYPE_BEBOP);
     }
 
     // not monitoring current
@@ -198,35 +232,16 @@ bool AP_BattMonitor::has_current(uint8_t instance) const
 /// voltage - returns battery voltage in volts
 float AP_BattMonitor::voltage(uint8_t instance) const
 {
-    if (instance < AP_BATT_MONITOR_MAX_INSTANCES) {
+    if (instance < _num_instances) {
         return _BattMonitor_STATE(instance).voltage;
     } else {
         return 0.0f;
     }
 }
 
-// voltage2 - returns the voltage of the second battery (helper function to send 2nd voltage to GCS)
-float AP_BattMonitor::voltage2() const
-{
-    // exit immediately if one or fewer monitors
-    if (_num_instances < 2) {
-        return 0.0f;
-    }
-
-    // get next battery's voltage
-    for (uint8_t i=1; i<AP_BATT_MONITOR_MAX_INSTANCES; i++) {
-        if (drivers[i] != NULL) {
-            return _BattMonitor_STATE(i).voltage;
-        }
-    }
-
-    // if we somehow got here, return zero
-    return 0.0f;
-}
-
 /// current_amps - returns the instantaneous current draw in amperes
 float AP_BattMonitor::current_amps(uint8_t instance) const {
-    if (instance < AP_BATT_MONITOR_MAX_INSTANCES) {
+    if (instance < _num_instances) {
         return _BattMonitor_STATE(instance).current_amps;
     } else {
         return 0.0f;
@@ -235,7 +250,7 @@ float AP_BattMonitor::current_amps(uint8_t instance) const {
 
 /// current_total_mah - returns total current drawn since start-up in amp-hours
 float AP_BattMonitor::current_total_mah(uint8_t instance) const {
-    if (instance < AP_BATT_MONITOR_MAX_INSTANCES) {
+    if (instance < _num_instances) {
         return _BattMonitor_STATE(instance).current_total_mah;
     } else {
         return 0.0f;
@@ -245,10 +260,10 @@ float AP_BattMonitor::current_total_mah(uint8_t instance) const {
 /// capacity_remaining_pct - returns the % battery capacity remaining (0 ~ 100)
 uint8_t AP_BattMonitor::capacity_remaining_pct(uint8_t instance) const
 {
-    if (_num_instances == 0 || instance >= AP_BATT_MONITOR_MAX_INSTANCES || drivers[instance] == NULL) {
-        return 0;
-    } else {
+    if (instance < _num_instances && drivers[instance] != NULL) {
         return drivers[instance]->capacity_remaining_pct();
+    } else {
+        return 0;
     }
 }
 
@@ -256,31 +271,50 @@ uint8_t AP_BattMonitor::capacity_remaining_pct(uint8_t instance) const
 bool AP_BattMonitor::exhausted(uint8_t instance, float low_voltage, float min_capacity_mah)
 {
     // exit immediately if no monitors setup
-    if (_num_instances == 0 || instance >= AP_BATT_MONITOR_MAX_INSTANCES || drivers[instance] == NULL) {
+    if (_num_instances == 0 || instance >= _num_instances) {
         return false;
     }
 
-    // get current time
-    uint32_t tnow = hal.scheduler->millis();
-
     // check voltage
-    if ((state[instance].voltage > 0.0f) && (low_voltage > 0) && (state[instance].voltage < low_voltage)) {
+    if ((state[instance].voltage > 0) && (low_voltage > 0) && (state[instance].voltage < low_voltage)) {
         // this is the first time our voltage has dropped below minimum so start timer
         if (state[instance].low_voltage_start_ms == 0) {
-            state[instance].low_voltage_start_ms = tnow;
-        }else if (tnow - state[instance].low_voltage_start_ms > AP_BATT_LOW_VOLT_TIMEOUT_MS) {
+            state[instance].low_voltage_start_ms = AP_HAL::millis();
+        } else if (AP_HAL::millis() - state[instance].low_voltage_start_ms > AP_BATT_LOW_VOLT_TIMEOUT_MS) {
             return true;
         }
-    }else{
+    } else {
         // acceptable voltage so reset timer
         state[instance].low_voltage_start_ms = 0;
     }
 
     // check capacity if current monitoring is enabled
-    if (has_current(instance) && (min_capacity_mah>0) && (_pack_capacity[instance] - state[instance].current_total_mah < min_capacity_mah)) {
+    if (has_current(instance) && (min_capacity_mah > 0) && (_pack_capacity[instance] - state[instance].current_total_mah < min_capacity_mah)) {
         return true;
     }
 
-    // if we've gotten this far battery is ok
+    // if we've gotten this far then battery is ok
     return false;
 }
+
+#if APM_BUILD_TYPE(APM_BUILD_ArduPlane)
+// return true if any battery is pushing too much power
+bool AP_BattMonitor::overpower_detected() const
+{
+    bool result = false;
+    for (int instance = 0; instance < _num_instances; instance++) {
+        result |= overpower_detected(instance);
+    }
+    return result;
+}
+
+bool AP_BattMonitor::overpower_detected(uint8_t instance) const
+{
+    if (instance < _num_instances && _watt_max[instance] > 0) {
+        float power = _BattMonitor_STATE(instance).current_amps * _BattMonitor_STATE(instance).voltage;
+        return _BattMonitor_STATE(instance).healthy && (power > _watt_max[instance]);
+    }
+    return false;
+}
+#endif
+

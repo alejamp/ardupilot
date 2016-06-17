@@ -22,11 +22,14 @@ WIPE_EEPROM=0
 REVERSE_THROTTLE=0
 NO_REBUILD=0
 START_HIL=0
-TRACKER_ARGS=""
-EXTERNAL_SIM=0
+SITLRCIN=1
+EXTRA_ARGS=""
 MODEL=""
 BREAKPOINT=""
 OVERRIDE_BUILD_TARGET=""
+DELAY_START=0
+DEFAULTS_PATH=""
+MAVLINK_PROTOCOL_VERSION="1"
 
 usage()
 {
@@ -42,7 +45,7 @@ Options:
     -D               build with debugging
     -B               add a breakpoint at given location in debugger
     -T               start an antenna tracker instance
-    -A               pass arguments to antenna tracker
+    -A               pass arguments to SITL instance
     -t               set antenna tracker start location
     -L               select start location from Tools/autotest/locations.txt
     -l               set the custom start location from -L
@@ -57,8 +60,9 @@ Options:
     -b BUILD_TARGET  override SITL build target
     -j NUM_PROC      number of processors to use during build (default 1)
     -H               start HIL
-    -e               use external simulator
     -S SPEEDUP       set simulation speedup (1 for wall clock time)
+    -d TIME          delays the start of mavproxy by the number of seconds
+    -P VERSION       mavlink protocol version (1 or 2)
 
 mavproxy_options:
     --map            start with a map
@@ -75,7 +79,7 @@ EOF
 
 
 # parse options. Thanks to http://wiki.bash-hackers.org/howto/getopts_tutorial
-while getopts ":I:VgGcj:TA:t:L:l:v:hwf:RNHeMS:DB:b:" opt; do
+while getopts ":I:VgGcj:TA:t:L:l:v:hwf:RNHeMS:DB:b:d:P:" opt; do
   case $opt in
     v)
       VEHICLE=$OPTARG
@@ -97,7 +101,7 @@ while getopts ":I:VgGcj:TA:t:L:l:v:hwf:RNHeMS:DB:b:" opt; do
       START_ANTENNA_TRACKER=1
       ;;
     A)
-      TRACKER_ARGS="$OPTARG"
+      EXTRA_ARGS="$OPTARG"
       ;;
     R)
       REVERSE_THROTTLE=1
@@ -107,6 +111,9 @@ while getopts ":I:VgGcj:TA:t:L:l:v:hwf:RNHeMS:DB:b:" opt; do
       ;;
     D)
       DEBUG_BUILD=1
+      ;;
+    d)
+      DELAY_START="$OPTARG"
       ;;
     B)
       BREAKPOINT="$OPTARG"
@@ -142,11 +149,11 @@ while getopts ":I:VgGcj:TA:t:L:l:v:hwf:RNHeMS:DB:b:" opt; do
     w)
       WIPE_EEPROM=1
       ;;
-    e)
-      EXTERNAL_SIM=1
-      ;;
     b)
       OVERRIDE_BUILD_TARGET="$OPTARG"
+      ;;
+    P)
+      MAVLINK_PROTOCOL_VERSION="$OPTARG"
       ;;
     h)
       usage
@@ -183,12 +190,15 @@ trap kill_tasks SIGINT
 
 # setup ports for this instance
 MAVLINK_PORT="tcp:127.0.0.1:"$((5760+10*$INSTANCE))
-SIMIN_PORT="127.0.0.1:"$((5502+10*$INSTANCE))
 SIMOUT_PORT="127.0.0.1:"$((5501+10*$INSTANCE))
-FG_PORT="127.0.0.1:"$((5503+10*$INSTANCE))
 
 [ -z "$VEHICLE" ] && {
-    VEHICLE=$(basename $PWD)
+    CDIR="$PWD"
+    rpath=$(which realpath)
+    [ -n "$rpath" ] && {
+        CDIR=$(realpath $CDIR)
+    }
+    VEHICLE=$(basename $CDIR)
 }
 
 [ -z "$FRAME" -a "$VEHICLE" = "APMrover2" ] && {
@@ -219,7 +229,7 @@ and in your \$PATH
 
 Please get it from git://github.com/tridge/jsbsim.git
 See 
-  http://dev.ardupilot.com/wiki/simulation-2/sitl-simulator-software-in-the-loop/setting-up-sitl-on-linux/ 
+  http://dev.ardupilot.org/wiki/simulation-2/sitl-simulator-software-in-the-loop/setting-up-sitl-on-linux/ 
 for more details
 =========================================================
 EOF
@@ -228,31 +238,77 @@ EOF
 }
 
 
+autotest="../Tools/autotest"
+[ -d "$autotest" ] || {
+    # we are not running from one of the standard vehicle directories. Use 
+    # the location of the sim_vehicle.sh script to find the path
+    autotest=$(dirname $(readlink -e $0))
+}
+
 # modify build target based on copter frame type
 case $FRAME in
-    +|quad)
+    +|quad|quad-*)
 	BUILD_TARGET="sitl"
-        MODEL="+"
+        MODEL="$FRAME"
+        DEFAULTS_PATH="$autotest/copter_params.parm"
 	;;
-    X)
+    X*)
 	BUILD_TARGET="sitl"
         EXTRA_PARM="param set FRAME 1;"
-        MODEL="X"
+        MODEL="$FRAME"
+        DEFAULTS_PATH="$autotest/copter_params.parm"
 	;;
     octa*)
 	BUILD_TARGET="sitl-octa"
         MODEL="$FRAME"
+        DEFAULTS_PATH="$autotest/copter_params.parm"
 	;;
-    heli)
+    tri*)
+	BUILD_TARGET="sitl-tri"
+        MODEL="$FRAME"
+        DEFAULTS_PATH="$autotest/tri_params.parm"
+	;;
+    y6*)
+	BUILD_TARGET="sitl-y6"
+        MODEL="$FRAME"
+        DEFAULTS_PATH="$autotest/y6_params.parm"
+	;;
+    firefly*)
+	BUILD_TARGET="sitl"
+        MODEL="$FRAME"
+        DEFAULTS_PATH="$autotest/firefly.parm"
+	;;
+    heli-dual)
+        BUILD_TARGET="sitl-heli-dual"
+        MODEL="heli-dual"
+        ;;
+    heli-compound)
+        BUILD_TARGET="sitl-heli-compound"
+        MODEL="heli-compound"
+        ;;
+    heli*)
 	BUILD_TARGET="sitl-heli"
-        MODEL="heli"
+        MODEL="$FRAME"
+        DEFAULTS_PATH="$autotest/Helicopter.parm"
+	;;
+    singlecopter*)
+	BUILD_TARGET="sitl-single"
+        MODEL="$FRAME"
+        DEFAULTS_PATH="$autotest/SingleCopter.parm"
+	;;
+    coaxcopter*)
+	BUILD_TARGET="sitl-coax"
+        MODEL="$FRAME"
+        DEFAULTS_PATH="$autotest/CoaxCopter.parm"
 	;;
     IrisRos)
 	BUILD_TARGET="sitl"
+        DEFAULTS_PATH="$autotest/copter_params.parm"
 	;;
-    CRRCSim-heli)
-	BUILD_TARGET="sitl-heli"
+    Gazebo)
+	BUILD_TARGET="sitl"
         MODEL="$FRAME"
+        DEFAULTS_PATH="$autotest/copter_params.parm"
 	;;
     CRRCSim|last_letter*)
 	BUILD_TARGET="sitl"
@@ -262,6 +318,46 @@ case $FRAME in
 	BUILD_TARGET="sitl"
         MODEL="$FRAME"
         check_jsbsim_version
+        DEFAULTS_PATH="$autotest/ArduPlane.parm"
+	;;
+    quadplane-tilttri*)
+	BUILD_TARGET="sitl-tri"
+        MODEL="$FRAME"
+        DEFAULTS_PATH="$autotest/quadplane-tilttri.parm"
+	;;
+    quadplane*)
+	BUILD_TARGET="sitl"
+        MODEL="$FRAME"
+        DEFAULTS_PATH="$autotest/quadplane.parm"
+	;;
+    plane-elevon*)
+	BUILD_TARGET="sitl"
+        MODEL="$FRAME"
+        DEFAULTS_PATH="$autotest/plane-elevons.parm"
+	;;
+    plane-vtail*)
+	BUILD_TARGET="sitl"
+        MODEL="$FRAME"
+        DEFAULTS_PATH="$autotest/plane-vtail.parm"
+	;;
+    plane*)
+	BUILD_TARGET="sitl"
+        MODEL="$FRAME"
+        DEFAULTS_PATH="$autotest/plane.parm"
+	;;
+    rover-skid)
+	BUILD_TARGET="sitl"
+        MODEL="$FRAME"
+        DEFAULTS_PATH="$autotest/Rover-skid.parm"
+	;;
+    flightaxis*)
+        MODEL="$FRAME"
+        SITLRCIN=0
+	;;
+    *-heli)
+	BUILD_TARGET="sitl-heli"
+        MODEL="$FRAME"
+        DEFAULTS_PATH="$autotest/Helicopter.parm"
 	;;
     *)
         MODEL="$FRAME"
@@ -276,12 +372,12 @@ if [ -n "$OVERRIDE_BUILD_TARGET" ]; then
     BUILD_TARGET="$OVERRIDE_BUILD_TARGET"
 fi
 
-autotest="../Tools/autotest"
-[ -d "$autotest" ] && {
-    autotest=$(dirname $(readlink -e $0))
+VEHICLEDIR="$autotest/../../$VEHICLE"
+[ -d "$VEHICLEDIR" ] || {
+    VEHICLEDIR=$(dirname $(readlink -e $VEHICLEDIR))
 }
-pushd $autotest/../../$VEHICLE || {
-    echo "Failed to change to vehicle directory for $VEHICLE"
+pushd $VEHICLEDIR || {
+    echo "Failed to change to vehicle directory for $VEHICLEDIR"
     usage
     exit 1
 }
@@ -307,7 +403,7 @@ popd
 
 # get the location information
 if [ -z $CUSTOM_LOCATION ]; then
-    SIMHOME=$(cat $autotest/locations.txt | grep -i "^$LOCATION=" | cut -d= -f2)
+    SIMHOME=$(cat $autotest/locations.txt | grep -i "^$LOCATION=" | head -1 | cut -d= -f2)
 else
     SIMHOME=$CUSTOM_LOCATION
     LOCATION="Custom_Location"
@@ -349,26 +445,16 @@ if [ $WIPE_EEPROM == 1 ]; then
     cmd="$cmd -w"
 fi
 
-cmd="$cmd --model $MODEL --speedup=$SPEEDUP"
-
-case $VEHICLE in
-    ArduPlane)
-        PARMS="ArduPlane.parm"
-        ;;
-    ArduCopter)
-        PARMS="copter_params.parm"
-        ;;
-    APMrover2)
-        PARMS="Rover.parm"
-        ;;
-    *)
-        PARMS=""
-        ;;
-esac
+cmd="$cmd --model $MODEL --speedup=$SPEEDUP $EXTRA_ARGS"
 
 if [ $USE_MAVLINK_GIMBAL == 1 ]; then
     echo "Using MAVLink gimbal"
     cmd="$cmd --gimbal"
+fi
+
+if [ -n "$DEFAULTS_PATH" ]; then
+    echo "Using defaults from $DEFAULTS_PATH"
+    cmd="$cmd --defaults $DEFAULTS_PATH"
 fi
 
 if [ $START_HIL == 0 ]; then
@@ -390,12 +476,19 @@ else
 fi
 fi
 
+if [ $START_HIL == 1 ]; then
+    $autotest/run_in_terminal_window.sh "JSBSim" $autotest/jsb_sim/runsim.py --home $SIMHOME --speedup=$SPEEDUP || exit 1
+fi
+
 trap kill_tasks SIGINT
 
 # mavproxy.py --master tcp:127.0.0.1:5760 --sitl 127.0.0.1:5501 --out 127.0.0.1:14550 --out 127.0.0.1:14551 
 options=""
 if [ $START_HIL == 0 ]; then
-options="--master $MAVLINK_PORT --sitl $SIMOUT_PORT"
+    options="--master $MAVLINK_PORT"
+    if [ $SITLRCIN == 1 ]; then
+        options="$options --sitl $SIMOUT_PORT"
+    fi
 fi
 
 # If running inside of a vagrant guest, then we probably want to forward our mavlink out to the containing host OS
@@ -403,19 +496,23 @@ if [ $USER == "vagrant" ]; then
 options="$options --out 10.0.2.2:14550"
 fi
 options="$options --out 127.0.0.1:14550 --out 127.0.0.1:14551"
-extra_cmd1=""
-if [ $WIPE_EEPROM == 1 ]; then
-    extra_cmd="param forceload $autotest/$PARMS; $EXTRA_PARM; param fetch"
-fi
+extra_cmd=""
 if [ $START_ANTENNA_TRACKER == 1 ]; then
     options="$options --load-module=tracker"
-    extra_cmd="$extra_cmd module load map; tracker set port $TRACKER_UARTA; tracker start;"
+    extra_cmd="$extra_cmd module load map; tracker set port $TRACKER_UARTA; tracker start; tracker arm"
 fi
 if [ $START_HIL == 1 ]; then
     options="$options --load-module=HIL"
 fi
 if [ $USE_MAVLINK_GIMBAL == 1 ]; then
     options="$options --load-module=gimbal"
+fi
+if [ $DELAY_START != 0 ]; then
+  sleep $DELAY_START
+fi
+
+if [ $MAVLINK_PROTOCOL_VERSION == 2 ]; then
+    options="$options --mav20"
 fi
 
 if [ -f /usr/bin/cygstart ]; then

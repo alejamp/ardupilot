@@ -3,19 +3,10 @@
  *       2010 Code by Jason Short. DIYDrones.com
  */
 
-#include <AP_HAL.h>
-#include <AP_Common.h>
-#include <AP_Progmem.h>
-#include <AP_Param.h>
-#include <StorageManager.h>
-#include <AP_Math.h>
-#include <PID.h> // ArduPilot Mega RC Library
+#include <AP_HAL/AP_HAL.h>
+#include <PID/PID.h> // ArduPilot Mega RC Library
 
-#include <AP_HAL_AVR.h>
-#include <AP_HAL_SITL.h>
-#include <AP_HAL_Empty.h>
-
-const AP_HAL::HAL& hal = AP_HAL_BOARD_DRIVER;
+const AP_HAL::HAL& hal = AP_HAL::get_HAL();
 
 long radio_in;
 long radio_trim;
@@ -40,8 +31,8 @@ void setup()
     pid.kD(0);
     pid.imax(0);
     pid.load_gains();
-    hal.console->printf_P(
-            PSTR("P %f  I %f  D %f  imax %f\n"),
+    hal.console->printf(
+            "P %f  I %f  D %f  imax %d\n",
             pid.kP(), pid.kI(), pid.kD(), pid.imax());
 }
 

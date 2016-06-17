@@ -1,13 +1,14 @@
-#include <AP_HAL.h>
-
-#if CONFIG_HAL_BOARD == HAL_BOARD_LINUX
 #include <assert.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <fcntl.h>
-#include <unistd.h>
 #include <errno.h>
+#include <fcntl.h>
+#include <inttypes.h>
 #include <stdio.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <unistd.h>
+
+#include <AP_HAL/AP_HAL.h>
+
 #include "Storage.h"
 
 using namespace Linux;
@@ -21,23 +22,23 @@ using namespace Linux;
 // card for ArduCopter and ArduPlane
 
 extern const AP_HAL::HAL& hal;
-LinuxStorage_FRAM::LinuxStorage_FRAM():
+Storage_FRAM::Storage_FRAM():
 _spi(NULL),
 _spi_sem(NULL)
 {}
 
-void LinuxStorage_FRAM::_storage_create(void)
+void Storage_FRAM::_storage_create(void)
 {
 
     int fd = open();
     hal.console->println("Storage: FRAM is getting reset to default values");
-    
+
     if (fd == -1) {
-        hal.scheduler->panic("Failed to load FRAM");
+        AP_HAL::panic("Failed to load FRAM");
     }
     for (uint16_t loc=0; loc<sizeof(_buffer); loc += LINUX_STORAGE_MAX_WRITE) {
         if (write(fd, &_buffer[loc], LINUX_STORAGE_MAX_WRITE) != LINUX_STORAGE_MAX_WRITE) {
-            hal.scheduler->panic("Error filling FRAM");            
+            AP_HAL::panic("Error filling FRAM");
         }
     }
 
@@ -47,7 +48,7 @@ void LinuxStorage_FRAM::_storage_create(void)
     close(fd);
 }
 
-void LinuxStorage_FRAM::_storage_open(void)
+void Storage_FRAM::_storage_open(void)
 {
     if (_initialised) {
         return;
@@ -59,24 +60,24 @@ void LinuxStorage_FRAM::_storage_open(void)
         _storage_create();
         fd = open();
         if (fd == -1) {
-            hal.scheduler->panic("Failed to access FRAM");
+            AP_HAL::panic("Failed to access FRAM");
         }
     }
-    
+
     if (read(fd, _buffer, sizeof(_buffer)) != sizeof(_buffer)) {
         _storage_create();
         fd = open();
         if (fd == -1) {
-            hal.scheduler->panic("Failed to access FRAM");
+            AP_HAL::panic("Failed to access FRAM");
         }
         if (read(fd, _buffer, sizeof(_buffer)) != sizeof(_buffer)) {
-            hal.scheduler->panic("Failed to read FRAM");
+            AP_HAL::panic("Failed to read FRAM");
         }
     }
     _initialised = true;
 }
 
-void LinuxStorage_FRAM::_timer_tick(void)
+void Storage_FRAM::_timer_tick(void)
 {
     if (!_initialised || _dirty_mask == 0) {
         return;
@@ -103,11 +104,11 @@ void LinuxStorage_FRAM::_timer_tick(void)
     }
     uint32_t write_mask = (1U<<i);
     // see how many lines to write
-    for (n=1; (i+n) < LINUX_STORAGE_NUM_LINES && 
+    for (n=1; (i+n) < LINUX_STORAGE_NUM_LINES &&
              n < (LINUX_STORAGE_MAX_WRITE>>LINUX_STORAGE_LINE_SHIFT); n++) {
         if (!(_dirty_mask & (1<<(n+i)))) {
             break;
-        }        
+        }
         // mark that line clean
         write_mask |= (1<<(n+i));
     }
@@ -130,7 +131,7 @@ void LinuxStorage_FRAM::_timer_tick(void)
 
 //File control function overloads
 
-int8_t LinuxStorage_FRAM::open()
+int8_t Storage_FRAM::open()
 {
     if(_initialised){
         return 0;
@@ -149,10 +150,10 @@ int8_t LinuxStorage_FRAM::open()
             hal.scheduler->delay(1000);
         }
         if(i==4){
-            hal.scheduler->panic(PSTR("FRAM: Failed to receive Manufacturer ID 5 times"));
+            AP_HAL::panic("FRAM: Failed to receive Manufacturer ID 5 times");
         }
     }
-    
+
     while(j<4){
         if(_register_read(j+4100,OPCODE_READ) == -1){
             continue;
@@ -170,31 +171,31 @@ int8_t LinuxStorage_FRAM::open()
     return 0;
 }
 
-int32_t LinuxStorage_FRAM::write(uint16_t fd,uint8_t *Buff, uint16_t NumBytes){
+int32_t Storage_FRAM::write(uint16_t fd,uint8_t *Buff, uint16_t NumBytes){
     if( _register_write(Buff,fptr,NumBytes) == -1){
         return -1;
     }
     return NumBytes;
 }
-int32_t LinuxStorage_FRAM::read(uint16_t fd, uint8_t *Buff, uint16_t NumBytes){
+int32_t Storage_FRAM::read(uint16_t fd, uint8_t *Buff, uint16_t NumBytes){
     for(uint16_t i=fptr;i<(fptr+NumBytes);i++){
         Buff[i-fptr]= _register_read(i,OPCODE_READ);
 
-        if(Buff[i-fptr]==-1){
+        if(Buff[i-fptr]==UINT8_MAX){
             return -1;
         }
     }
-    fptr+=NumBytes; 
-    return NumBytes; 
+    fptr+=NumBytes;
+    return NumBytes;
 }
-uint32_t LinuxStorage_FRAM::lseek(uint16_t fd,uint32_t offset,uint16_t whence){
+uint32_t Storage_FRAM::lseek(uint16_t fd,uint32_t offset,uint16_t whence){
     fptr = offset;
-    return offset; 
+    return offset;
 }
 
 //FRAM I/O functions
 
-int8_t LinuxStorage_FRAM::_register_write( uint8_t* src, uint16_t addr, uint16_t len ){
+int8_t Storage_FRAM::_register_write( uint8_t* src, uint16_t addr, uint16_t len ){
 
     uint8_t *tx;
     uint8_t *rx;
@@ -202,11 +203,11 @@ int8_t LinuxStorage_FRAM::_register_write( uint8_t* src, uint16_t addr, uint16_t
     tx = new uint8_t[len+3];
     rx = new uint8_t[len+3];
     _write_enable(true);
-    
+
     tx[0] = OPCODE_WRITE;
     tx[1] = addr>>8;
     tx[2] = addr;
-    
+
     for(i=0;i<len;i++){
         tx[i+3] = src[i];
     }
@@ -219,7 +220,7 @@ int8_t LinuxStorage_FRAM::_register_write( uint8_t* src, uint16_t addr, uint16_t
     return len;
 }
 
-int8_t LinuxStorage_FRAM::_write_enable(bool enable)
+int8_t Storage_FRAM::_write_enable(bool enable)
 {
     uint8_t tx[2];
     uint8_t rx[2];
@@ -233,21 +234,21 @@ int8_t LinuxStorage_FRAM::_write_enable(bool enable)
         tx[1] = 0;
         return transaction(tx, rx, 2);
     }
-    
+
 }
 
-int8_t LinuxStorage_FRAM::_register_read( uint16_t addr, uint8_t opcode )
+int8_t Storage_FRAM::_register_read( uint16_t addr, uint8_t opcode )
 {
     uint8_t tx[4] = {opcode, (uint8_t)((addr >> 8U)), (uint8_t)(addr & 0xFF), 0};
     uint8_t rx[4];
-    
+
     if(transaction(tx, rx, 4) == -1){
         return -1;
     }
     return rx[3];
 }
 
-int8_t LinuxStorage_FRAM::transaction(uint8_t* tx, uint8_t* rx, uint16_t len){
+int8_t Storage_FRAM::transaction(uint8_t* tx, uint8_t* rx, uint16_t len){
     _spi_sem = _spi->get_semaphore();
     if (!_spi_sem->take(100)) {
        // FRAM: Unable to get semaphore
@@ -257,5 +258,3 @@ int8_t LinuxStorage_FRAM::transaction(uint8_t* tx, uint8_t* rx, uint16_t len){
     _spi_sem->give();
     return 0;
 }
-
-#endif // CONFIG_HAL_BOARD

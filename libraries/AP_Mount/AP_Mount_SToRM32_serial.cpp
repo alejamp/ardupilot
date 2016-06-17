@@ -1,10 +1,10 @@
 // -*- tab-width: 4; Mode: C++; c-basic-offset: 4; indent-tabs-mode: nil -*-
 
-#include <AP_Mount_SToRM32_serial.h>
-#include <AP_HAL.h>
-#include <GCS_MAVLink.h>
-#include "include/mavlink/v1.0/checksum.h"
-#include "../AP_HAL/utility/RingBuffer.h"
+#include "AP_Mount_SToRM32_serial.h"
+#include <AP_HAL/AP_HAL.h>
+#include <GCS_MAVLink/GCS_MAVLink.h>
+#include <GCS_MAVLink/include/mavlink/v2.0/checksum.h>
+#include <AP_HAL/utility/RingBuffer.h>
 
 extern const AP_HAL::HAL& hal;
 
@@ -90,9 +90,9 @@ void AP_Mount_SToRM32_serial::update()
     }
 
     // resend target angles at least once per second
-    resend_now = resend_now || ((hal.scheduler->millis() - _last_send) > AP_MOUNT_STORM32_SERIAL_RESEND_MS);
+    resend_now = resend_now || ((AP_HAL::millis() - _last_send) > AP_MOUNT_STORM32_SERIAL_RESEND_MS);
 
-    if ((hal.scheduler->millis() - _last_send) > AP_MOUNT_STORM32_SERIAL_RESEND_MS*2) {
+    if ((AP_HAL::millis() - _last_send) > AP_MOUNT_STORM32_SERIAL_RESEND_MS*2) {
         _reply_type = ReplyType_UNKNOWN;
     }
     if (can_send(resend_now)) {
@@ -151,11 +151,8 @@ void AP_Mount_SToRM32_serial::send_target_angles(float pitch_deg, float roll_deg
 {
 
     static cmd_set_angles_struct cmd_set_angles_data = {
-        0xFD,
+        0xFA,
         0x0E,
-        0x00,
-        0x52,
-        0x43,
         0x11,
         0, // pitch
         0, // roll
@@ -192,7 +189,7 @@ void AP_Mount_SToRM32_serial::send_target_angles(float pitch_deg, float roll_deg
     }
 
     // store time of send
-    _last_send = hal.scheduler->millis();
+    _last_send = AP_HAL::millis();
 }
 
 void AP_Mount_SToRM32_serial::get_angles() {

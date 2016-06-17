@@ -16,7 +16,7 @@
    by Mirko Denecke <mirkix@gmail.com>
  */
 
-#include <AP_HAL.h>
+#include <AP_HAL/AP_HAL.h>
 #if CONFIG_HAL_BOARD_SUBTYPE == HAL_BOARD_SUBTYPE_LINUX_BBBMINI
 
 #include "AP_RangeFinder_BBB_PRU.h"
@@ -63,7 +63,7 @@ bool AP_RangeFinder_BBB_PRU::detect(RangeFinder &_ranger, uint8_t instance)
     *ctrl = 0;
     hal.scheduler->delay(1);
 
-    // Load firmware
+    // Load firmware (.text)
     FILE *file = fopen("/lib/firmware/rangefinderprutext.bin", "rb");
     if(file == NULL)
     {
@@ -78,6 +78,24 @@ bool AP_RangeFinder_BBB_PRU::detect(RangeFinder &_ranger, uint8_t instance)
     fclose(file);
 
     munmap(ram, PRU0_IRAM_SIZE);
+
+    ram = mmap(0, PRU0_DRAM_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, mem_fd, PRU0_DRAM_BASE);
+
+    // Load firmware (.data)
+    file = fopen("/lib/firmware/rangefinderprudata.bin", "rb");
+    if(file == NULL)
+    {
+        result = false;
+    }
+
+    if(fread(ram, PRU0_DRAM_SIZE, 1, file) != 1)
+    {
+        result = false;
+    }
+
+    fclose(file);
+
+    munmap(ram, PRU0_DRAM_SIZE);
 
     // Map PRU RAM
     ram = mmap(0, 0x1000, PROT_READ | PROT_WRITE, MAP_SHARED, mem_fd, PRU0_DRAM_BASE);

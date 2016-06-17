@@ -20,10 +20,10 @@
 //
 //	GPS configuration : Custom protocol per "Customize Function Specification, 3D Robotics, v1.6, v1.7, v1.8, v1.9"
 //
-#ifndef AP_GPS_MTK19_h
-#define AP_GPS_MTK19_h
+#pragma once
 
-#include <AP_GPS.h>
+#include "AP_GPS.h"
+#include "GPS_Backend.h"
 #include "AP_GPS_MTK_Common.h"
 
 #define MTK_GPS_REVISION_V16  16
@@ -78,8 +78,6 @@ private:
     // Receive buffer
     union {
         diyd_mtk_msg msg;
-        uint8_t bytes[];
+        uint8_t bytes[0];
     } _buffer;
 };
-
-#endif  // AP_GPS_MTK19_H

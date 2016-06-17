@@ -1,15 +1,18 @@
+#pragma once
 
-#ifndef __AP_HAL_LINUX_RCINPUT_H__
-#define __AP_HAL_LINUX_RCINPUT_H__
-
-#include <AP_HAL_Linux.h>
+#include "AP_HAL_Linux.h"
 
 #define LINUX_RC_INPUT_NUM_CHANNELS 16
 
-class Linux::LinuxRCInput : public AP_HAL::RCInput {
+class Linux::RCInput : public AP_HAL::RCInput {
 public:
-    LinuxRCInput();
-    virtual void init(void* machtnichts);
+    RCInput();
+
+    static RCInput *from(AP_HAL::RCInput *rcinput) {
+        return static_cast<RCInput*>(rcinput);
+    }
+
+    virtual void init();
     bool new_input();
     uint8_t num_channels();
     uint16_t read(uint8_t ch);
@@ -23,8 +26,13 @@ public:
     // specific implementations
     virtual void _timer_tick() {}
 
+    // add some DSM input bytes, for RCInput over a serial port
+    void add_dsm_input(const uint8_t *bytes, size_t nbytes);
+    
+    
  protected:
     void _process_rc_pulse(uint16_t width_s0, uint16_t width_s1);
+    void _update_periods(uint16_t *periods, uint8_t len);
 
  private:
     volatile bool new_rc_input;
@@ -56,9 +64,14 @@ public:
         uint16_t bytes[16]; // including start bit and stop bit
         uint16_t bit_ofs;
     } dsm_state;
+
+    // state of add_dsm_input
+    struct {
+        uint8_t frame[16];
+        uint8_t partial_frame_count;
+        uint32_t last_input_ms;
+    } dsm;
 };
 
 #include "RCInput_PRU.h"
 #include "RCInput_ZYNQ.h"
-
-#endif // __AP_HAL_LINUX_RCINPUT_H__

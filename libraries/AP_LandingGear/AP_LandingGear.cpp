@@ -1,14 +1,14 @@
 // -*- tab-width: 4; Mode: C++; c-basic-offset: 4; indent-tabs-mode: nil -*-
 
-#include <AP_LandingGear.h>
-#include <AP_Relay.h>
-#include <AP_Math.h>
-#include <RC_Channel.h>
-#include <AP_HAL.h>
+#include "AP_LandingGear.h"
+#include <AP_Relay/AP_Relay.h>
+#include <AP_Math/AP_Math.h>
+#include <RC_Channel/RC_Channel.h>
+#include <AP_HAL/AP_HAL.h>
 
 extern const AP_HAL::HAL& hal;
 
-const AP_Param::GroupInfo AP_LandingGear::var_info[] PROGMEM = {
+const AP_Param::GroupInfo AP_LandingGear::var_info[] = {
 
     // @Param: SERVO_RTRACT
     // @DisplayName: Landing Gear Servo Retracted PWM Value

@@ -1,11 +1,9 @@
 /// -*- tab-width: 4; Mode: C++; c-basic-offset: 4; indent-tabs-mode: nil -*-
+#pragma once
 
-#ifndef __AP_BOARDCONFIG_H__
-#define __AP_BOARDCONFIG_H__
-
-#include <AP_HAL.h>
-#include <AP_Common.h>
-#include <AP_Param.h>
+#include <AP_HAL/AP_HAL.h>
+#include <AP_Common/AP_Common.h>
+#include <AP_Param/AP_Param.h>
 
 class AP_BoardConfig
 {
@@ -28,13 +26,13 @@ private:
     AP_Int8 _ser1_rtscts;
     AP_Int8 _ser2_rtscts;
     AP_Int8 _safety_enable;
-    AP_Int8 _sbus_out_enable;
+    AP_Int8 _sbus_out_rate;
+    AP_Int32 _ignore_safety_channels;
+#ifndef CONFIG_ARCH_BOARD_PX4FMU_V1
+    AP_Int8 _can_enable;
+#endif
 #endif
 #if CONFIG_HAL_BOARD == HAL_BOARD_VRBRAIN
 
 #endif
 };
-
-#endif // __AP_BOARDCONFIG_H__
-
-

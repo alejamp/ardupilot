@@ -1,40 +1,39 @@
 // -*- tab-width: 4; Mode: C++; c-basic-offset: 4; indent-tabs-mode: nil -*-
 /*****************************************************************************
 The init_ardupilot function processes everything we need for an in - air restart
-	We will determine later if we are actually on the ground and process a
-	ground start in that case.
+    We will determine later if we are actually on the ground and process a
+    ground start in that case.
 
 *****************************************************************************/
 
 #include "Rover.h"
+#include "version.h"
 
 #if CLI_ENABLED == ENABLED
 
 // This is the help function
-// PSTR is an AVR macro to read strings from flash memory
-// printf_P is a version of print_f that reads from flash memory
 int8_t Rover::main_menu_help(uint8_t argc, const Menu::arg *argv)
 {
-	cliSerial->printf_P(PSTR("Commands:\n"
-						 "  logs        log readback/setup mode\n"
-						 "  setup       setup mode\n"
-						 "  test        test mode\n"
-						 "\n"
-						 "Move the slide switch and reset to FLY.\n"
-						 "\n"));
-	return(0);
+    cliSerial->printf("Commands:\n"
+                      "  logs        log readback/setup mode\n"
+                      "  setup       setup mode\n"
+                      "  test        test mode\n"
+                      "\n"
+                      "Move the slide switch and reset to FLY.\n"
+                      "\n");
+    return(0);
 }
 
 // Command/function table for the top-level menu.
 
-static const struct Menu::command main_menu_commands[] PROGMEM = {
-//   command		function called
+static const struct Menu::command main_menu_commands[] = {
+//   command        function called
 //   =======        ===============
-	{"logs",		MENU_FUNC(process_logs)},
-	{"setup",		MENU_FUNC(setup_mode)},
-	{"test",		MENU_FUNC(test_mode)},
+    {"logs",        MENU_FUNC(process_logs)},
+    {"setup",       MENU_FUNC(setup_mode)},
+    {"test",        MENU_FUNC(test_mode)},
     {"reboot",      MENU_FUNC(reboot_board)},
-	{"help",		MENU_FUNC(main_menu_help)}
+    {"help",        MENU_FUNC(main_menu_help)}
 };
 
 // Create the top-level menu object.
@@ -76,23 +75,19 @@ static void failsafe_check_static()
     rover.failsafe_check();
 }
 
-#if CONFIG_HAL_BOARD == HAL_BOARD_APM1
-    AP_ADC_ADS7844 apm1_adc;
-#endif
-
 void Rover::init_ardupilot()
 {
     // initialise console serial port
     serial_manager.init_console();
 
-	cliSerial->printf_P(PSTR("\n\nInit " FIRMWARE_STRING
-						 "\n\nFree RAM: %u\n"),
-                        hal.util->available_memory());
-                    
-	//
-	// Check the EEPROM format version before loading any parameters from EEPROM.
-	//
-	
+    cliSerial->printf("\n\nInit " FIRMWARE_STRING
+                      "\n\nFree RAM: %u\n",
+                      hal.util->available_memory());
+
+    //
+    // Check the EEPROM format version before loading any parameters from EEPROM.
+    //
+
     load_parameters();
 
     BoardConfig.init();
@@ -113,75 +108,62 @@ void Rover::init_ardupilot()
     // init baro before we start the GCS, so that the CLI baro test works
     barometer.init();
 
-	// init the GCS
-    gcs[0].setup_uart(serial_manager, AP_SerialManager::SerialProtocol_Console, 0);
-
     // we start by assuming USB connected, as we initialed the serial
-    // port with SERIAL0_BAUD. check_usb_mux() fixes this if need be.    
+    // port with SERIAL0_BAUD. check_usb_mux() fixes this if need be.
     usb_connected = true;
     check_usb_mux();
 
-    // setup serial port for telem1
-    gcs[1].setup_uart(serial_manager, AP_SerialManager::SerialProtocol_MAVLink, 0);
-
-#if MAVLINK_COMM_NUM_BUFFERS > 2
-    // setup serial port for telem2
-    gcs[2].setup_uart(serial_manager, AP_SerialManager::SerialProtocol_MAVLink, 1);
-#endif
-
-#if MAVLINK_COMM_NUM_BUFFERS > 3
-    // setup serial port for fourth telemetry port (not used by default)
-    gcs[3].setup_uart(serial_manager, AP_SerialManager::SerialProtocol_MAVLink, 2);
-#endif
+    // setup telem slots with serial ports
+    for (uint8_t i = 0; i < MAVLINK_COMM_NUM_BUFFERS; i++) {
+        gcs[i].setup_uart(serial_manager, AP_SerialManager::SerialProtocol_MAVLink, i);
+    }
 
     // setup frsky telemetry
 #if FRSKY_TELEM_ENABLED == ENABLED
     frsky_telemetry.init(serial_manager);
 #endif
 
-	mavlink_system.sysid = g.sysid_this_mav;
+    mavlink_system.sysid = g.sysid_this_mav;
 
 #if LOGGING_ENABLED == ENABLED
     log_init();
 #endif
 
+    GCS_MAVLINK::set_dataflash(&DataFlash);
+
     // Register mavlink_delay_cb, which will run anytime you have
     // more than 5ms remaining in your call to hal.scheduler->delay
     hal.scheduler->register_delay_callback(mavlink_delay_cb_static, 5);
 
-#if CONFIG_HAL_BOARD == HAL_BOARD_APM1
-    apm1_adc.Init();      // APM ADC library initialization
-#endif
-
-	if (g.compass_enabled==true) {
-		if (!compass.init()|| !compass.read()) {
-            cliSerial->println_P(PSTR("Compass initialisation failed!"));
+    if (g.compass_enabled==true) {
+        if (!compass.init()|| !compass.read()) {
+            cliSerial->println("Compass initialisation failed!");
             g.compass_enabled = false;
         } else {
             ahrs.set_compass(&compass);
-            //compass.get_offsets();						// load offsets to account for airframe magnetic interference
+            //compass.get_offsets();                        // load offsets to account for airframe magnetic interference
         }
-	}
+    }
 
-	// initialise sonar
+    // initialise sonar
     init_sonar();
 
     // and baro for EKF
-    init_barometer();
+    init_barometer(true);
 
-	// Do GPS init
+    // Do GPS init
     gps.init(&DataFlash, serial_manager);
 
     rc_override_active = hal.rcin->set_overrides(rc_override, 8);
 
-	init_rc_in();		// sets up rc channels from radio
-	init_rc_out();		// sets up the timer libs
+    init_rc_in();        // sets up rc channels from radio
+    init_rc_out();        // sets up the timer libs
 
     relay.init();
 
 #if MOUNT == ENABLED
     // initialise camera mount
-    camera_mount.init(serial_manager);
+    camera_mount.init(&DataFlash, serial_manager);
 #endif
 
     /*
@@ -192,32 +174,33 @@ void Rover::init_ardupilot()
 
 
 #if CLI_ENABLED == ENABLED
-	// If the switch is in 'menu' mode, run the main menu.
-	//
-	// Since we can't be sure that the setup or test mode won't leave
-	// the system in an odd state, we don't let the user exit the top
-	// menu; they must reset in order to fly.
-	//
+    // If the switch is in 'menu' mode, run the main menu.
+    //
+    // Since we can't be sure that the setup or test mode won't leave
+    // the system in an odd state, we don't let the user exit the top
+    // menu; they must reset in order to fly.
+    //
     if (g.cli_enabled == 1) {
-        const prog_char_t *msg = PSTR("\nPress ENTER 3 times to start interactive setup\n");
-        cliSerial->println_P(msg);
+        const char *msg = "\nPress ENTER 3 times to start interactive setup\n";
+        cliSerial->println(msg);
         if (gcs[1].initialised && (gcs[1].get_uart() != NULL)) {
-            gcs[1].get_uart()->println_P(msg);
+            gcs[1].get_uart()->println(msg);
         }
         if (num_gcs > 2 && gcs[2].initialised && (gcs[2].get_uart() != NULL)) {
-            gcs[2].get_uart()->println_P(msg);
+            gcs[2].get_uart()->println(msg);
         }
     }
 #endif
 
-	startup_ground();
-    Log_Write_Startup(TYPE_GROUNDSTART_MSG);
+    init_capabilities();
+
+    startup_ground();
 
     set_mode((enum mode)g.initial_mode.get());
 
-	// set the correct flight mode
-	// ---------------------------
-	reset_control_switch();
+    // set the correct flight mode
+    // ---------------------------
+    reset_control_switch();
 }
 
 //********************************************************************************
@@ -227,22 +210,22 @@ void Rover::startup_ground(void)
 {
     set_mode(INITIALISING);
 
-	gcs_send_text_P(SEVERITY_LOW,PSTR("<startup_ground> GROUND START"));
+    gcs_send_text(MAV_SEVERITY_INFO,"<startup_ground> Ground start");
 
-	#if(GROUND_START_DELAY > 0)
-		gcs_send_text_P(SEVERITY_LOW,PSTR("<startup_ground> With Delay"));
-		delay(GROUND_START_DELAY * 1000);
-	#endif
+    #if(GROUND_START_DELAY > 0)
+        gcs_send_text(MAV_SEVERITY_NOTICE,"<startup_ground> With delay");
+        delay(GROUND_START_DELAY * 1000);
+    #endif
 
-	//IMU ground start
-	//------------------------
+    //IMU ground start
+    //------------------------
     //
 
-	startup_INS_ground();
+    startup_INS_ground();
 
-	// read the radio to set trims
-	// ---------------------------
-	trim_radio();
+    // read the radio to set trims
+    // ---------------------------
+    trim_radio();
 
     // initialise mission library
     mission.init();
@@ -254,7 +237,7 @@ void Rover::startup_ground(void)
     ins.set_raw_logging(should_log(MASK_LOG_IMU_RAW));
     ins.set_dataflash(&DataFlash);
 
-	gcs_send_text_P(SEVERITY_LOW,PSTR("\n\n Ready to drive."));
+    gcs_send_text(MAV_SEVERITY_INFO,"Ready to drive");
 }
 
 /*
@@ -266,18 +249,24 @@ void Rover::set_reverse(bool reverse)
     if (in_reverse == reverse) {
         return;
     }
-    g.pidSpeedThrottle.reset_I();    
+    g.pidSpeedThrottle.reset_I();
     in_reverse = reverse;
 }
 
 void Rover::set_mode(enum mode mode)
-{       
+{
 
-	if(control_mode == mode){
-		// don't switch modes if we are already in the correct mode.
-		return;
-	}
-	control_mode = mode;
+    if (control_mode == mode){
+        // don't switch modes if we are already in the correct mode.
+        return;
+    }
+
+    // If we are changing out of AUTO mode reset the loiter timer
+    if (control_mode == AUTO) {
+        loiter_time = 0;
+    }
+
+    control_mode = mode;
     throttle_last = 0;
     throttle = 500;
     set_reverse(false);
@@ -286,40 +275,44 @@ void Rover::set_mode(enum mode mode)
     if (control_mode != AUTO) {
         auto_triggered = false;
     }
-        
-	switch(control_mode)
-	{
-		case MANUAL:
-		case HOLD:
-		case LEARNING:
-		case STEERING:
-			break;
 
-		case AUTO:
-            rtl_complete = false;
-            restart_nav();
-			break;
+    switch(control_mode) {
+    case MANUAL:
+    case HOLD:
+    case LEARNING:
+    case STEERING:
+        auto_throttle_mode = false;
+        break;
 
-		case RTL:
-			do_RTL();
-			break;
+    case AUTO:
+        auto_throttle_mode = true;
+        rtl_complete = false;
+        restart_nav();
+        break;
 
-        case GUIDED:
-            rtl_complete = false;
-            /*
-              when entering guided mode we set the target as the current
-              location. This matches the behaviour of the copter code.
-            */
-            guided_WP = current_loc;
-            set_guided_WP();
-            break;
+    case RTL:
+        auto_throttle_mode = true;
+        do_RTL();
+        break;
 
-		default:
-			do_RTL();
-			break;
-	}
+    case GUIDED:
+        auto_throttle_mode = true;
+        rtl_complete = false;
+        /*
+           when entering guided mode we set the target as the current
+           location. This matches the behaviour of the copter code.
+           */
+        guided_WP = current_loc;
+        set_guided_WP();
+        break;
 
-	if (should_log(MASK_LOG_MODE)) {
+    default:
+        auto_throttle_mode = true;
+        do_RTL();
+        break;
+    }
+
+    if (should_log(MASK_LOG_MODE)) {
         DataFlash.Log_Write_Mode(control_mode);
     }
 }
@@ -344,7 +337,7 @@ bool Rover::mavlink_set_mode(uint8_t mode)
 }
 
 /*
-  called to set/unset a failsafe event. 
+  called to set/unset a failsafe event.
  */
 void Rover::failsafe_trigger(uint8_t failsafe_type, bool on)
 {
@@ -360,18 +353,18 @@ void Rover::failsafe_trigger(uint8_t failsafe_type, bool on)
     }
     if (failsafe.triggered != 0 && failsafe.bits == 0) {
         // a failsafe event has ended
-        gcs_send_text_fmt(PSTR("Failsafe ended"));
+        gcs_send_text_fmt(MAV_SEVERITY_INFO, "Failsafe ended");
     }
 
     failsafe.triggered &= failsafe.bits;
 
-    if (failsafe.triggered == 0 && 
-        failsafe.bits != 0 && 
+    if (failsafe.triggered == 0 &&
+        failsafe.bits != 0 &&
         millis() - failsafe.start_time > g.fs_timeout*1000 &&
         control_mode != RTL &&
         control_mode != HOLD) {
         failsafe.triggered = failsafe.bits;
-        gcs_send_text_fmt(PSTR("Failsafe trigger 0x%x"), (unsigned)failsafe.triggered);
+        gcs_send_text_fmt(MAV_SEVERITY_WARNING, "Failsafe trigger 0x%x", (unsigned)failsafe.triggered);
         switch (g.fs_action) {
         case 0:
             break;
@@ -387,27 +380,19 @@ void Rover::failsafe_trigger(uint8_t failsafe_type, bool on)
 
 void Rover::startup_INS_ground(void)
 {
-    gcs_send_text_P(SEVERITY_MEDIUM, PSTR("Warming up ADC..."));
- 	mavlink_delay(500);
+    gcs_send_text(MAV_SEVERITY_INFO, "Warming up ADC");
+    mavlink_delay(500);
 
-	// Makes the servos wiggle twice - about to begin INS calibration - HOLD LEVEL AND STILL!!
-	// -----------------------
-    gcs_send_text_P(SEVERITY_MEDIUM, PSTR("Beginning INS calibration; do not move vehicle"));
-	mavlink_delay(1000);
+    // Makes the servos wiggle twice - about to begin INS calibration - HOLD LEVEL AND STILL!!
+    // -----------------------
+    gcs_send_text(MAV_SEVERITY_INFO, "Beginning INS calibration. Do not move vehicle");
+    mavlink_delay(1000);
 
     ahrs.init();
-	ahrs.set_fly_forward(true);
+    ahrs.set_fly_forward(true);
     ahrs.set_vehicle_class(AHRS_VEHICLE_GROUND);
 
-    AP_InertialSensor::Start_style style;
-    if (g.skip_gyro_cal) {
-        style = AP_InertialSensor::WARM_START;
-    } else {
-        style = AP_InertialSensor::COLD_START;
-    }
-
-	ins.init(style, ins_sample_rate);
-
+    ins.init(scheduler.get_loop_rate_hz());
     ahrs.reset();
 }
 
@@ -419,9 +404,9 @@ void Rover::update_notify()
 }
 
 void Rover::resetPerfData(void) {
-	mainLoop_count 			= 0;
-	G_Dt_max 				= 0;
-	perf_mon_timer 			= millis();
+    mainLoop_count = 0;
+    G_Dt_max = 0;
+    perf_mon_timer = millis();
 }
 
 
@@ -434,18 +419,6 @@ void Rover::check_usb_mux(void)
 
     // the user has switched to/from the telemetry port
     usb_connected = usb_check;
-
-#if CONFIG_HAL_BOARD == HAL_BOARD_APM2
-    // the APM2 has a MUX setup where the first serial port switches
-    // between USB and a TTL serial connection. When on USB we use
-    // SERIAL0_BAUD, but when connected as a TTL serial port we run it
-    // at SERIAL1_BAUD.
-    if (usb_connected) {
-        serial_manager.set_console_baud(AP_SerialManager::SerialProtocol_Console, 0);
-    } else {
-        serial_manager.set_console_baud(AP_SerialManager::SerialProtocol_MAVLink, 0);
-    }
-#endif
 }
 
 
@@ -453,25 +426,25 @@ void Rover::print_mode(AP_HAL::BetterStream *port, uint8_t mode)
 {
     switch (mode) {
     case MANUAL:
-        port->print_P(PSTR("Manual"));
+        port->print("Manual");
         break;
     case HOLD:
-        port->print_P(PSTR("HOLD"));
+        port->print("HOLD");
         break;
     case LEARNING:
-        port->print_P(PSTR("Learning"));
+        port->print("Learning");
         break;
     case STEERING:
-        port->print_P(PSTR("Steering"));
+        port->print("Steering");
         break;
     case AUTO:
-        port->print_P(PSTR("AUTO"));
+        port->print("AUTO");
         break;
     case RTL:
-        port->print_P(PSTR("RTL"));
+        port->print("RTL");
         break;
     default:
-        port->printf_P(PSTR("Mode(%u)"), (unsigned)mode);
+        port->printf("Mode(%u)", (unsigned)mode);
         break;
     }
 }
@@ -502,13 +475,9 @@ bool Rover::should_log(uint32_t mask)
     if (!(mask & g.log_bitmask) || in_mavlink_delay) {
         return false;
     }
-    bool ret = hal.util->get_soft_armed() || (g.log_bitmask & MASK_LOG_WHEN_DISARMED) != 0;
+    bool ret = hal.util->get_soft_armed() || DataFlash.log_while_disarmed();
     if (ret && !DataFlash.logging_started() && !in_log_download) {
-        // we have to set in_mavlink_delay to prevent logging while
-        // writing headers
-        in_mavlink_delay = true;
         start_logging();
-        in_mavlink_delay = false;
     }
     return ret;
 }
@@ -522,3 +491,54 @@ void Rover::frsky_telemetry_send(void)
     frsky_telemetry.send_frames((uint8_t)control_mode);
 }
 #endif
+
+/*
+  update AHRS soft arm state and log as needed
+ */
+void Rover::change_arm_state(void)
+{
+    Log_Arm_Disarm();
+    hal.util->set_soft_armed(arming.is_armed() &&
+                             hal.util->safety_switch_state() != AP_HAL::Util::SAFETY_DISARMED);
+}
+
+/*
+  arm motors
+ */
+bool Rover::arm_motors(AP_Arming::ArmingMethod method)
+{
+    if (!arming.arm(method)) {
+        return false;
+    }
+
+    // only log if arming was successful
+    channel_throttle->enable_out();
+
+    change_arm_state();
+    return true;
+}
+
+/*
+  disarm motors
+ */
+bool Rover::disarm_motors(void)
+{
+    if (!arming.disarm()) {
+        return false;
+    }
+    if (arming.arming_required() == AP_Arming::YES_ZERO_PWM) {
+        channel_throttle->disable_out();
+        if (g.skid_steer_out) {
+            channel_steer->disable_out();
+        }
+    }
+    if (control_mode != AUTO) {
+        // reset the mission on disarm if we are not in auto
+        mission.reset();
+    }
+
+    //only log if disarming was successful
+    change_arm_state();
+
+    return true;
+}

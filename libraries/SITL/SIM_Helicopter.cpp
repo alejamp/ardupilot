@@ -17,14 +17,12 @@
   helicopter simulator class
 */
 
-#include <AP_HAL.h>
-#if CONFIG_HAL_BOARD == HAL_BOARD_SITL
 #include "SIM_Helicopter.h"
+
 #include <stdio.h>
 
-/*
-  constructor
- */
+namespace SITL {
+
 Helicopter::Helicopter(const char *home_str, const char *frame_str) :
     Aircraft(home_str, frame_str)
 {
@@ -40,6 +38,15 @@ Helicopter::Helicopter(const char *home_str, const char *frame_str) :
     tail_thrust_scale = sinf(radians(hover_lean)) * thrust_scale / yaw_zero;
 
     frame_height = 0.1;
+
+    if (strstr(frame_str, "-dual")) {
+        frame_type = HELI_FRAME_DUAL;
+    } else if (strstr(frame_str, "-compound")) {
+        frame_type = HELI_FRAME_COMPOUND;
+    } else {
+        frame_type = HELI_FRAME_CONVENTIONAL;
+    }
+    gas_heli = (strstr(frame_str, "-gas") != NULL);
 }
 
 /*
@@ -47,23 +54,80 @@ Helicopter::Helicopter(const char *home_str, const char *frame_str) :
  */
 void Helicopter::update(const struct sitl_input &input)
 {
+    // get wind vector setup
+    update_wind(input);
+
+    float rsc = constrain_float((input.servos[7]-1000) / 1000.0f, 0, 1);
+    // ignition only for gas helis
+    bool ignition_enabled = gas_heli?(input.servos[5] > 1500):true;
+
+    float thrust = 0;
+    float roll_rate = 0;
+    float pitch_rate = 0;
+    float yaw_rate = 0;
+    float torque_effect_accel = 0;
+    float lateral_x_thrust = 0;
+    float lateral_y_thrust = 0;
+
     float swash1 = (input.servos[0]-1000) / 1000.0f;
     float swash2 = (input.servos[1]-1000) / 1000.0f;
     float swash3 = (input.servos[2]-1000) / 1000.0f;
-    float tail_rotor = (input.servos[3]-1000) / 1000.0f;
-    float rsc = (input.servos[7]-1000) / 1000.0f;
 
-    // how much time has passed?
-    float delta_time = frame_time_us * 1.0e-6f;
-
-    float thrust = (rsc/rsc_setpoint)*(swash1+swash2+swash3)/3.0f;
-
-    // very simplistic mapping to body euler rates
-    float roll_rate = swash1 - swash2;
-    float pitch_rate = (swash1 + swash2)/2.0f - swash3;
-    float yaw_rate = tail_rotor - 0.5f;
-
+    if (!ignition_enabled) {
+        rsc = 0;
+    }
     float rsc_scale = rsc/rsc_setpoint;
+
+    switch (frame_type) {
+    case HELI_FRAME_CONVENTIONAL: {
+        // simulate a traditional helicopter
+
+        float tail_rotor = (input.servos[3]-1000) / 1000.0f;
+
+        thrust = (rsc/rsc_setpoint) * (swash1+swash2+swash3) / 3.0f;
+        torque_effect_accel = (rsc_scale+thrust) * rotor_rot_accel;
+
+        roll_rate = swash1 - swash2;
+        pitch_rate = (swash1+swash2) / 2.0f - swash3;
+        yaw_rate = tail_rotor - 0.5f;
+
+        lateral_y_thrust = yaw_rate * rsc_scale * tail_thrust_scale;
+        break;
+    }
+
+    case HELI_FRAME_DUAL: {
+        // simulate a tandem helicopter
+
+        float swash4 = (input.servos[3]-1000) / 1000.0f;
+        float swash5 = (input.servos[4]-1000) / 1000.0f;
+        float swash6 = (input.servos[5]-1000) / 1000.0f;
+
+        thrust = (rsc / rsc_setpoint) * (swash1+swash2+swash3+swash4+swash5+swash6) / 6.0f;
+        torque_effect_accel = (rsc_scale + rsc / rsc_setpoint) * rotor_rot_accel * ((swash1+swash2+swash3) - (swash4+swash5+swash6));
+
+        roll_rate = (swash1-swash2) + (swash4-swash5);
+        pitch_rate = (swash1+swash2+swash3) - (swash4+swash5+swash6);
+        yaw_rate = (swash1-swash2) + (swash5-swash4);
+        break;
+    }
+
+    case HELI_FRAME_COMPOUND: {
+        // simulate a compound helicopter
+
+        float right_rotor = (input.servos[3]-1000) / 1000.0f;
+        float left_rotor = (input.servos[4]-1000) / 1000.0f;
+
+        thrust = (rsc/rsc_setpoint) * (swash1+swash2+swash3) / 3.0f;
+        torque_effect_accel = (rsc_scale+thrust) * rotor_rot_accel;
+
+        roll_rate = swash1 - swash2;
+        pitch_rate = (swash1+swash2) / 2.0f - swash3;
+        yaw_rate = right_rotor - left_rotor;
+
+        lateral_x_thrust = (left_rotor+right_rotor-1) * rsc_scale * tail_thrust_scale;
+        break;
+    }
+    }
 
     roll_rate *= rsc_scale;
     pitch_rate *= rsc_scale;
@@ -81,66 +145,34 @@ void Helicopter::update(const struct sitl_input &input)
     rot_accel.z -= gyro.z * radians(400.0)  / terminal_rotation_rate;
 
     // torque effect on tail
-    rot_accel.z += (rsc_scale+thrust) * rotor_rot_accel;
-
-    // update rotational rates in body frame
-    gyro += rot_accel * delta_time;
-
-    // update attitude
-    dcm.rotate(gyro * delta_time);
-    dcm.normalize();
+    rot_accel.z += torque_effect_accel;
 
     // air resistance
-    Vector3f air_resistance = -velocity_ef * (GRAVITY_MSS/terminal_velocity);
+    Vector3f air_resistance = -velocity_air_ef * (GRAVITY_MSS/terminal_velocity);
 
     // scale thrust to newtons
     thrust *= thrust_scale;
 
-    accel_body = Vector3f(0, yaw_rate * rsc_scale * tail_thrust_scale, -thrust / mass);
-    Vector3f accel_earth = dcm * accel_body;
-    accel_earth += Vector3f(0, 0, GRAVITY_MSS);
-    accel_earth += air_resistance;
+    accel_body = Vector3f(lateral_x_thrust, lateral_y_thrust, -thrust / mass);
+    accel_body += dcm.transposed() * air_resistance;
 
-    // if we're on the ground, then our vertical acceleration is limited
-    // to zero. This effectively adds the force of the ground on the aircraft
-    if (on_ground(position) && accel_earth.z > 0) {
-        accel_earth.z = 0;
-    }
-
-    // work out acceleration as seen by the accelerometers. It sees the kinematic
-    // acceleration (ie. real movement), plus gravity
-    accel_body = dcm.transposed() * (accel_earth + Vector3f(0, 0, -GRAVITY_MSS));
-
-    // add some noise
-    add_noise(thrust / thrust_scale);
-
-    // new velocity vector
-    velocity_ef += accel_earth * delta_time;
-
-    // new position vector
-    Vector3f old_position = position;
-    position += velocity_ef * delta_time;
-
-    // assume zero wind for now
-    airspeed = velocity_ef.length();
-
+    bool was_on_ground = on_ground(position);
+    
+    update_dynamics(rot_accel);
+    
     // constrain height to the ground
-    if (on_ground(position)) {
-        if (!on_ground(old_position)) {
-            printf("Hit ground at %f m/s\n", velocity_ef.z);
-
-            velocity_ef.zero();
-
-            // zero roll/pitch, but keep yaw
-            float r, p, y;
-            dcm.to_euler(&r, &p, &y);
-            dcm.from_euler(0, 0, y);
-
-            position.z = -(ground_level + frame_height - home.alt*0.01f);
-        }
+    if (on_ground(position) && !was_on_ground) {
+        // zero roll/pitch, but keep yaw
+        float r, p, y;
+        dcm.to_euler(&r, &p, &y);
+        dcm.from_euler(0, 0, y);
+        
+        position.z = -(ground_level + frame_height - home.alt*0.01f);
+        velocity_ef.zero();
     }
 
     // update lat/lon/altitude
     update_position();
 }
-#endif // CONFIG_HAL_BOARD
+
+} // namespace SITL

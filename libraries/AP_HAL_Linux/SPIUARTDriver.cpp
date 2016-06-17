@@ -1,11 +1,10 @@
-#include <AP_HAL.h>
-
-#if CONFIG_HAL_BOARD == HAL_BOARD_LINUX
+#include "SPIUARTDriver.h"
 
 #include <stdlib.h>
 #include <cstdio>
-#include "SPIUARTDriver.h"
-#include "../AP_HAL/utility/RingBuffer.h"
+
+#include <AP_HAL/AP_HAL.h>
+#include <AP_HAL/utility/RingBuffer.h>
 
 extern const AP_HAL::HAL& hal;
 
@@ -17,14 +16,14 @@ extern const AP_HAL::HAL& hal;
 #define debug(fmt, args ...)  do {hal.console->printf("[SPIUARTDriver]: %s:%d: " fmt "\n", __FUNCTION__, __LINE__, ## args); } while(0)
 #define error(fmt, args ...)  do {fprintf(stderr,"%s:%d: " fmt "\n", __FUNCTION__, __LINE__, ## args); } while(0)
 #else
-#define debug(fmt, args ...)  
-#define error(fmt, args ...)  
+#define debug(fmt, args ...)
+#define error(fmt, args ...)
 #endif
 
 using namespace Linux;
 
-LinuxSPIUARTDriver::LinuxSPIUARTDriver() :
-    LinuxUARTDriver(false),
+SPIUARTDriver::SPIUARTDriver() :
+    UARTDriver(false),
     _spi(NULL),
     _spi_sem(NULL),
     _last_update_timestamp(0),
@@ -35,20 +34,20 @@ LinuxSPIUARTDriver::LinuxSPIUARTDriver() :
     _writebuf = NULL;
 }
 
-bool LinuxSPIUARTDriver::sem_take_nonblocking()
+bool SPIUARTDriver::sem_take_nonblocking()
 {
     return _spi_sem->take_nonblocking();
 }
 
-void LinuxSPIUARTDriver::sem_give()
+void SPIUARTDriver::sem_give()
 {
     _spi_sem->give();
 }
 
-void LinuxSPIUARTDriver::begin(uint32_t b, uint16_t rxS, uint16_t txS)
+void SPIUARTDriver::begin(uint32_t b, uint16_t rxS, uint16_t txS)
 {
     if (device_path != NULL) {
-        LinuxUARTDriver::begin(b,rxS,txS);
+        UARTDriver::begin(b,rxS,txS);
         if ( is_initialized()) {
             _external = true;
             return;
@@ -93,14 +92,14 @@ void LinuxSPIUARTDriver::begin(uint32_t b, uint16_t rxS, uint16_t txS)
        _buffer = new uint8_t[rxS];
        if (_buffer == NULL) {
            hal.console->printf("Not enough memory\n");
-           hal.scheduler->panic("Not enough memory\n");
+           AP_HAL::panic("Not enough memory\n");
        }
    }
 
    _spi = hal.spi->device(AP_HAL::SPIDevice_Ublox);
 
    if (_spi == NULL) {
-       hal.scheduler->panic("Cannot get SPIDevice_MPU9250");
+       AP_HAL::panic("Cannot get SPIDevice_Ublox");
    }
 
    _spi_sem = _spi->get_semaphore();
@@ -125,15 +124,15 @@ void LinuxSPIUARTDriver::begin(uint32_t b, uint16_t rxS, uint16_t txS)
            debug("%s: wrong baudrate (%u) for SPI-driven device. setting default speed", __func__, b);
            break;
    }
-   
+
    _initialised = true;
 }
 
-int LinuxSPIUARTDriver::_write_fd(const uint8_t *buf, uint16_t size)
+int SPIUARTDriver::_write_fd(const uint8_t *buf, uint16_t size)
 {
     if (_external) {
-        return LinuxUARTDriver::_write_fd(buf,size);
-    } 
+        return UARTDriver::_write_fd(buf,size);
+    }
 
     if (!sem_take_nonblocking()) {
         return 0;
@@ -148,9 +147,9 @@ int LinuxSPIUARTDriver::_write_fd(const uint8_t *buf, uint16_t size)
     uint16_t ret = size;
 
     /* Since all SPI-transactions are transfers we need update
-     * the _readbuf. I do believe there is a way to encapsulate 
+     * the _readbuf. I do believe there is a way to encapsulate
      * this operation since it's the same as in the
-     * LinuxUARTDriver::write().  
+     * UARTDriver::write().
      */
 
     uint8_t *buffer = _buffer;
@@ -190,14 +189,14 @@ int LinuxSPIUARTDriver::_write_fd(const uint8_t *buf, uint16_t size)
 
 
     return ret;
-    
+
 }
 
 static const uint8_t ff_stub[300] = {0xff};
-int LinuxSPIUARTDriver::_read_fd(uint8_t *buf, uint16_t n)
+int SPIUARTDriver::_read_fd(uint8_t *buf, uint16_t n)
 {
     if (_external) {
-        return LinuxUARTDriver::_read_fd(buf, n);
+        return UARTDriver::_read_fd(buf, n);
     }
 
     if (!sem_take_nonblocking()) {
@@ -205,10 +204,10 @@ int LinuxSPIUARTDriver::_read_fd(uint8_t *buf, uint16_t n)
     }
 
     /* Make SPI transactions shorter. It can save SPI bus from keeping too
-     * long. It's essential for NavIO as MPU9250 is on the same bus and 
+     * long. It's essential for NavIO as MPU9250 is on the same bus and
      * doesn't like to be waiting. Making transactions more frequent but shorter
      * is a win.
-     */  
+     */
 
     if (n > 100) {
         n = 100;
@@ -223,20 +222,18 @@ int LinuxSPIUARTDriver::_read_fd(uint8_t *buf, uint16_t n)
     return n;
 }
 
-void LinuxSPIUARTDriver::_timer_tick(void)
+void SPIUARTDriver::_timer_tick(void)
 {
     if (_external) {
-        LinuxUARTDriver::_timer_tick();
+        UARTDriver::_timer_tick();
         return;
     }
     /* lower the update rate */
-    if (hal.scheduler->micros() - _last_update_timestamp < 10000) {
+    if (AP_HAL::micros() - _last_update_timestamp < 10000) {
         return;
     }
 
-    LinuxUARTDriver::_timer_tick();
+    UARTDriver::_timer_tick();
 
-    _last_update_timestamp = hal.scheduler->micros();
+    _last_update_timestamp = AP_HAL::micros();
 }
-
-#endif

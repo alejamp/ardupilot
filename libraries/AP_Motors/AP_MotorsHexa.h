@@ -2,13 +2,11 @@
 
 /// @file	AP_MotorsHexa.h
 /// @brief	Motor control class for Hexacopters
+#pragma once
 
-#ifndef __AP_MOTORS_HEXA_H__
-#define __AP_MOTORS_HEXA_H__
-
-#include <AP_Common.h>
-#include <AP_Math.h>        // ArduPilot Mega Vector/Matrix math Library
-#include <RC_Channel.h>     // RC Channel Library
+#include <AP_Common/AP_Common.h>
+#include <AP_Math/AP_Math.h>        // ArduPilot Mega Vector/Matrix math Library
+#include <RC_Channel/RC_Channel.h>     // RC Channel Library
 #include "AP_MotorsMatrix.h"    // Parent Motors Matrix library
 
 /// @class      AP_MotorsHexa
@@ -26,5 +24,3 @@ public:
 protected:
 
 };
-
-#endif  // AP_MOTORSHEXA

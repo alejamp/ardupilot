@@ -1,42 +1,10 @@
 /*
   simple test of RC output interface
  */
-#include <AP_HAL.h>
-#include <AP_HAL_AVR.h>
-#include <AP_HAL_SITL.h>
-#include <AP_HAL_PX4.h>
-#include <AP_HAL_Linux.h>
-#include <AP_HAL_Empty.h>
-#include <AP_Common.h>
-#include <AP_Baro.h>
-#include <AP_ADC.h>
-#include <AP_GPS.h>
-#include <AP_InertialSensor.h>
-#include <AP_Notify.h>
-#include <DataFlash.h>
-#include <GCS_MAVLink.h>
-#include <AP_Mission.h>
-#include <StorageManager.h>
-#include <AP_Terrain.h>
-#include <AP_Compass.h>
-#include <AP_Declination.h>
-#include <SITL.h>
-#include <Filter.h>
-#include <AP_Param.h>
-#include <AP_Progmem.h>
-#include <AP_Math.h>
-#include <AP_AHRS.h>
-#include <AP_Airspeed.h>
-#include <AP_Vehicle.h>
-#include <AP_ADC_AnalogSource.h>
-#include <AP_NavEKF.h>
-#include <AP_Rally.h>
-#include <AP_Scheduler.h>
-#include <UARTDriver.h>
-#include <AP_BattMonitor.h>
-#include <AP_RangeFinder.h>
 
-const AP_HAL::HAL& hal = AP_HAL_BOARD_DRIVER;
+#include <AP_HAL/AP_HAL.h>
+
+const AP_HAL::HAL& hal = AP_HAL::get_HAL();
 
 void setup (void) 
 {

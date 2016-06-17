@@ -1,5 +1,6 @@
-#ifndef __AP_AHRS_DCM_H__
-#define __AP_AHRS_DCM_H__
+/// -*- tab-width: 4; Mode: C++; c-basic-offset: 4; indent-tabs-mode: nil -*-
+#pragma once
+
 /*
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -26,7 +27,7 @@ class AP_AHRS_DCM : public AP_AHRS
 public:
     // Constructors
     AP_AHRS_DCM(AP_InertialSensor &ins, AP_Baro &baro, AP_GPS &gps) :
-    AP_AHRS(ins, baro, gps),
+        AP_AHRS(ins, baro, gps),
         _omega_I_sum_time(0.0f),
         _renorm_val_sum(0.0f),
         _renorm_val_count(0),
@@ -46,9 +47,7 @@ public:
         _last_wind_time(0),
         _last_airspeed(0.0f),
         _last_consistent_heading(0),
-#if HAL_CPU_CLASS >= HAL_CPU_CLASS_75
         _imu1_weight(0.5f),
-#endif
         _last_failure_ms(0),
         _last_startup_ms(0)
     {
@@ -66,7 +65,7 @@ public:
     }
 
     // return rotation matrix representing rotaton from body to earth axes
-    const Matrix3f &get_dcm_matrix(void) const {
+    const Matrix3f &get_rotation_body_to_ned(void) const {
         return _body_dcm_matrix;
     }
 
@@ -90,8 +89,12 @@ public:
     virtual bool get_position(struct Location &loc) const;
 
     // status reporting
-    float           get_error_rp(void) const { return _error_rp; } 
-    float           get_error_yaw(void) const { return _error_yaw; }
+    float           get_error_rp(void) const {
+        return _error_rp;
+    }
+    float           get_error_yaw(void) const {
+        return _error_yaw;
+    }
 
     // return a wind estimation vector, in m/s
     Vector3f wind_estimate(void) {
@@ -195,9 +198,7 @@ private:
     // estimated wind in m/s
     Vector3f _wind;
 
-#if HAL_CPU_CLASS >= HAL_CPU_CLASS_75
     float _imu1_weight;
-#endif
 
     // last time AHRS failed in milliseconds
     uint32_t _last_failure_ms;
@@ -205,5 +206,3 @@ private:
     // time when DCM was last reset
     uint32_t _last_startup_ms;
 };
-
-#endif // __AP_AHRS_DCM_H__

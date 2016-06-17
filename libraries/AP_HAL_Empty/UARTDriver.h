@@ -1,12 +1,10 @@
+#pragma once
 
-#ifndef __AP_HAL_EMPTY_UARTDRIVER_H__
-#define __AP_HAL_EMPTY_UARTDRIVER_H__
+#include "AP_HAL_Empty.h"
 
-#include <AP_HAL_Empty.h>
-
-class Empty::EmptyUARTDriver : public AP_HAL::UARTDriver {
+class Empty::UARTDriver : public AP_HAL::UARTDriver {
 public:
-    EmptyUARTDriver();
+    UARTDriver();
     /* Empty implementations of UARTDriver virtual methods */
     void begin(uint32_t b);
     void begin(uint32_t b, uint16_t rxS, uint16_t txS);
@@ -25,5 +23,3 @@ public:
     size_t write(uint8_t c);
     size_t write(const uint8_t *buffer, size_t size);
 };
-
-#endif // __AP_HAL_EMPTY_UARTDRIVER_H__

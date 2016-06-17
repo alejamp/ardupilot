@@ -15,8 +15,7 @@
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-#ifndef __TONE_ALARM_PX4_H__
-#define __TONE_ALARM_PX4_H__
+#pragma once
 
 #include "NotifyDevice.h"
 
@@ -55,6 +54,8 @@ private:
         uint8_t pre_arm_check         : 1;    // 0 = failing checks, 1 = passed
         uint8_t failsafe_radio        : 1;    // 1 if radio failsafe
         uint8_t vehicle_lost          : 1;    // 1 if lost copter tone requested
+        uint8_t compass_cal_running   : 1;    // 1 if compass calibration is running
+        uint8_t waiting_for_throw     : 1;    // 1 if waiting for copter throw launch
     } flags;
 
     int8_t _cont_tone_playing;
@@ -68,5 +69,3 @@ private:
 
     const static Tone _tones[];
 };
-
-#endif // __TONE_ALARM_PX4_H__

@@ -12,14 +12,14 @@
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-#ifndef AP_VEHICLE_H
-#define AP_VEHICLE_H
+#pragma once
+
 /*
   this header holds a parameter structure for each vehicle type for
   parameters needed by multiple libraries
  */
 
-#include <AP_Param.h>
+#include <AP_Param/AP_Param.h>
 
 class AP_Vehicle {
 
@@ -40,6 +40,7 @@ public:
         AP_Int8  autotune_level;
         AP_Int16 land_pitch_cd;
         AP_Float land_flare_sec;
+        AP_Float land_pre_flare_airspeed;
         AP_Int8  stall_prevention;
     };
 
@@ -53,5 +54,3 @@ public:
 
 
 #include "AP_Vehicle_Type.h"
-
-#endif // AP_VEHICLE_H

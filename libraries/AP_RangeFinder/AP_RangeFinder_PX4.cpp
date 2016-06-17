@@ -14,7 +14,7 @@
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <AP_HAL.h>
+#include <AP_HAL/AP_HAL.h>
 
 #if CONFIG_HAL_BOARD == HAL_BOARD_PX4 || CONFIG_HAL_BOARD == HAL_BOARD_VRBRAIN
 #include "AP_RangeFinder_PX4.h"
@@ -132,7 +132,7 @@ void AP_RangeFinder_PX4::update(void)
     }
 
     // if we have not taken a reading in the last 0.2s set status to No Data
-    if (hal.scheduler->micros64() - _last_timestamp >= 200000) {
+    if (AP_HAL::micros64() - _last_timestamp >= 200000) {
         set_status(RangeFinder::RangeFinder_NoData);
     }
 

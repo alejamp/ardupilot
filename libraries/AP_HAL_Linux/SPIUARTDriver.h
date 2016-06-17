@@ -1,14 +1,13 @@
-#ifndef __AP_HAL_LINUX_SPIUARTDRIVER_H__
-#define __AP_HAL_LINUX_SPIUARTDRIVER_H__
+#pragma once
 
-#include <AP_HAL_Linux.h>
+#include "AP_HAL_Linux.h"
 
 #include "UARTDriver.h"
 
 
-class Linux::LinuxSPIUARTDriver : public Linux::LinuxUARTDriver {
+class Linux::SPIUARTDriver : public Linux::UARTDriver {
 public:
-    LinuxSPIUARTDriver();
+    SPIUARTDriver();
     void begin(uint32_t b, uint16_t rxS, uint16_t txS);
     void _timer_tick(void);
 
@@ -28,5 +27,3 @@ private:
     uint8_t *_buffer;
     bool _external;
 };
-
-#endif //__AP_HAL_LINUX_SPIUARTDRIVER_H__
