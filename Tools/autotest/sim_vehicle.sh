@@ -69,10 +69,10 @@ mavproxy_options:
     --console        start with a status console
     --out DEST       start MAVLink output to DEST
 
-Note: 
-    eeprom.bin in the starting directory contains the parameters for your 
-    simulated vehicle. Always start from the same directory. It is recommended that 
-    you start in the main vehicle directory for the vehicle you are simulating, 
+Note:
+    eeprom.bin in the starting directory contains the parameters for your
+    simulated vehicle. Always start from the same directory. It is recommended that
+    you start in the main vehicle directory for the vehicle you are simulating,
     for example, start in the ArduPlane directory to simulate ArduPlane
 EOF
 }
@@ -172,7 +172,7 @@ done
 shift $((OPTIND-1))
 
 # kill existing copy if this is the '0' instance only
-kill_tasks() 
+kill_tasks()
 {
     [ "$INSTANCE" -eq "0" ] && {
 	for pname in JSBSim lt-JSBSim ArduPlane.elf ArduCopter.elf APMrover2.elf AntennaTracker.elf JSBSIm.exe MAVProxy.exe; do
@@ -228,8 +228,8 @@ You need the latest ArduPilot version of JSBSim installed
 and in your \$PATH
 
 Please get it from git://github.com/tridge/jsbsim.git
-See 
-  http://dev.ardupilot.org/wiki/simulation-2/sitl-simulator-software-in-the-loop/setting-up-sitl-on-linux/ 
+See
+  http://dev.ardupilot.org/wiki/simulation-2/sitl-simulator-software-in-the-loop/setting-up-sitl-on-linux/
 for more details
 =========================================================
 EOF
@@ -240,7 +240,7 @@ EOF
 
 autotest="../Tools/autotest"
 [ -d "$autotest" ] || {
-    # we are not running from one of the standard vehicle directories. Use 
+    # we are not running from one of the standard vehicle directories. Use
     # the location of the sim_vehicle.sh script to find the path
     autotest=$(dirname $(readlink -e $0))
 }
@@ -482,7 +482,7 @@ fi
 
 trap kill_tasks SIGINT
 
-# mavproxy.py --master tcp:127.0.0.1:5760 --sitl 127.0.0.1:5501 --out 127.0.0.1:14550 --out 127.0.0.1:14551 
+# mavproxy.py --master tcp:127.0.0.1:5760 --sitl 127.0.0.1:5501 --out 127.0.0.1:14550 --out 127.0.0.1:14551
 options=""
 if [ $START_HIL == 0 ]; then
     options="--master $MAVLINK_PORT"
@@ -518,6 +518,9 @@ fi
 if [ -f /usr/bin/cygstart ]; then
     cygstart -w "/cygdrive/c/Program Files (x86)/MAVProxy/mavproxy.exe" $options --cmd="$extra_cmd" $*
 else
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+      sleep 5 # wait for XQuartz to instantiate - if Mac osx
+    fi
     mavproxy.py $options --cmd="$extra_cmd" $*
 fi
 if [ $START_HIL == 0 ]; then
