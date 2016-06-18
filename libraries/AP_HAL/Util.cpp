@@ -3,6 +3,11 @@
 #include "utility/print_vprintf.h"
 #include <time.h>
 
+#ifdef __APPLE__
+#include <mach/clock.h>
+#include <mach/mach.h>
+#endif
+
 /* Helper class implements AP_HAL::Print so we can use utility/vprintf */
 class BufferPrinter : public AP_HAL::Print {
 public:
@@ -24,7 +29,7 @@ public:
         return n;
     }
 
-    size_t _offs; 
+    size_t _offs;
     char* const  _str;
     const size_t _size;
 };
@@ -51,7 +56,19 @@ int AP_HAL::Util::vsnprintf(char* str, size_t size, const char *format, va_list 
 uint64_t AP_HAL::Util::get_system_clock_ms() const
 {
     struct timespec ts;
-    clock_gettime(CLOCK_REALTIME, &ts);
+
+    #ifdef __APPLE__ // OS X does not have clock_gettime, use clock_get_time
+      clock_serv_t cclock;
+      mach_timespec_t mts;
+      host_get_clock_service(mach_host_self(), CALENDAR_CLOCK, &cclock);
+      clock_get_time(cclock, &mts);
+      mach_port_deallocate(mach_task_self(), cclock);
+      ts.tv_sec = mts.tv_sec;
+      ts.tv_nsec = mts.tv_nsec;
+    #else
+      clock_gettime(CLOCK_REALTIME, &ts);
+    #endif
+
     return ((long long)(ts.tv_sec * 1000 + ts.tv_nsec/1000000));
 }
 

@@ -162,16 +162,16 @@ void mat_LU_decompose(float* A, float* L, float* U, float *P, uint8_t n)
     }
     for(uint8_t i = 0; i < n; i++) {
         for(uint8_t j = 0; j < n; j++) {
-            if(j <= i) {    
+            if(j <= i) {
                 U[j*n + i] = APrime[j*n + i];
                 for(uint8_t k = 0; k < j; k++) {
-                    U[j*n + i] -= L[j*n + k] * U[k*n + i]; 
+                    U[j*n + i] -= L[j*n + k] * U[k*n + i];
                 }
             }
             if(j >= i) {
                 L[j*n + i] = APrime[j*n + i];
                 for(uint8_t k = 0; k < i; k++) {
-                    L[j*n + i] -= L[j*n + k] * U[k*n + i]; 
+                    L[j*n + i] -= L[j*n + k] * U[k*n + i];
                 }
                 L[j*n + i] /= U[i*n + i];
             }
@@ -286,7 +286,10 @@ bool inverse4x4(float m[],float invOut[])
     uint8_t i;
 
 #if CONFIG_HAL_BOARD == HAL_BOARD_SITL
-    int old = fedisableexcept(FE_OVERFLOW);
+    int old = 0;
+#ifndef __APPLE__
+    old = fedisableexcept(FE_OVERFLOW);
+#endif
     if (old < 0) {
         hal.console->printf("inverse4x4(): warning: error on disabling FE_OVERFLOW floating point exception\n");
     }
@@ -406,10 +409,12 @@ bool inverse4x4(float m[],float invOut[])
 
     det = m[0] * inv[0] + m[1] * inv[4] + m[2] * inv[8] + m[3] * inv[12];
 
+#ifndef __APPLE__
 #if CONFIG_HAL_BOARD == HAL_BOARD_SITL
     if (old >= 0 && feenableexcept(old) < 0) {
         hal.console->printf("inverse4x4(): warning: error on restoring floating exception mask\n");
     }
+#endif
 #endif
 
     if (is_zero(det) || isinf(det)){
